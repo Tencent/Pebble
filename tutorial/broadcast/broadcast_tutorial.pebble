@@ -1,0 +1,10 @@
+
+namespace cpp broadcast.tutorial
+
+service BroadcastTrigger {
+    i32 start(1:string content),
+}
+
+service BroadcastTest {
+    oneway void broadcast(1:string content);
+}
