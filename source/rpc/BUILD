@@ -26,7 +26,7 @@ gen_rule(
         'transport/libpebble_rpc_transport.a',
         'libpebble_rpc.a',
     ],
-    cmd = 'cd $BUILD_DIR/source/rpc;cp ../broadcast/libpebble_broadcast.a .;cp ../../thirdparty/consistent_hash/libconsistent_hash.a .;ar -x libpebble_broadcast.a;ar -x libconsistent_hash.a;ar -x common/libpebble_rpc_common.a;ar -x protocol/libpebble_rpc_protocol.a;ar -x transport/libpebble_rpc_transport.a;ar -x libpebble_rpc.a;ar -rcs libpebble_rpc_s.a *.o;rm *.o;rm libpebble_broadcast.a;rm libconsistent_hash.a',
+    cmd = 'cd $BUILD_DIR/source/rpc;cp ../broadcast/libpebble_broadcast.a .;ar -x libpebble_broadcast.a;ar -x common/libpebble_rpc_common.a;ar -x protocol/libpebble_rpc_protocol.a;ar -x transport/libpebble_rpc_transport.a;ar -x libpebble_rpc.a;ar -rcs libpebble_rpc_s.a *.o;rm *.o;rm libpebble_broadcast.a;',
     deps = [
         '//source/rpc:pebble_rpc'
     ],
