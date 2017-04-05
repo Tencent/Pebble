@@ -7,7 +7,6 @@ cc_library(
                'field_pack.cpp'
     ],
     incs = [
-        '../../../deps/tsf4g/include/'
     ],
     deps = [
         

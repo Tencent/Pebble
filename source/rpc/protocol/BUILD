@@ -11,7 +11,6 @@ cc_library(
                'group_protocol.cpp',
     ],
     incs = [
-        '../../../deps/tsf4g/include/',
         '../common/',
         '../transport',
     ],

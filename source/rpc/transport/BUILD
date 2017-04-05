@@ -7,7 +7,6 @@ cc_library(
 			   'buffer_transport.cpp',
     ],
     incs = [
-        '../../../deps/tsf4g/include/',
     ],
     deps = [
         '//source/rpc/common:pebble_rpc_common'
