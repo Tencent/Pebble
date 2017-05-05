@@ -1,3 +1,0 @@
-多client接入server广播示例
-3个client分别登陆到server
-每次登陆后触发server发送广播

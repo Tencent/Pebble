@@ -1,6 +1,0 @@
-namespace cpp tutorial
-
-service Tutorial {
-   string helloworld(1: string who)
-}
-

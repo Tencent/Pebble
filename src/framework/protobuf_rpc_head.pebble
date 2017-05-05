@@ -1,0 +1,17 @@
+
+namespace cpp pebble 
+
+/**
+ * 为避免pebble对PB版本的依赖，在PB RPC实现上需要的一些数据不使用PB来描述，使用Pebbble IDL进行描述
+ * 这部分不对用户可见，用户界面可以使用任何版本PB，保证无兼容性问题。
+ */
+
+// PB RPC 消息头定义
+struct ProtoBufRpcHead {
+    1: optional i32 version,        // 版本号，因通过序号可以做版本兼容，这里用optional
+    2: i32 msg_type,                // 消息类型，请求、响应、异常、ONEWAY
+    3: i64(u) session_id,           // 会话ID，用于请求、响应配对
+    4: string function_name,        // 请求的服务，格式为service_name.function_name
+    5: optional i32 timeout_ms,     // 请求超时时间，单位ms
+    6: optional i64(u) timestamp,   // 消息产生时间戳
+}

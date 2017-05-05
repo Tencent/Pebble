@@ -1,4 +1,0 @@
-server间的广播示例
-默认启动3个server，每个server均打开了一个频道
-由client触发3次广播事件
-收到广播命令的server会向频道广播消息，另外两个server将收到广播

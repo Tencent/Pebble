@@ -1,0 +1,18 @@
+
+namespace cpp pebble
+
+// 控制命令请求结构定义
+struct ControlRequest {
+    1: string command,                  // 控制命令
+    2: optional list<string> options,   // 命令选项
+}
+
+// 控制命令响应结构定义
+struct ControlResponse {
+    1: i32 ret_code,    // 处理结果，一般0为成功
+    2: string data,     // 结果描述或数据
+}
+
+service _PebbleControl {
+    ControlResponse RunCommand(1: ControlRequest req),
+}

@@ -1,7 +1,6 @@
 Blade Unified Construction Collection
 =======================================
 
-http://code.tencent.com/projects/blade
 
 Overview
 -----------------------------
@@ -67,7 +66,6 @@ highly encourage it.
     Blade is released in versioned source packages which is
     located at this site [1].
 
-    [1] http://code.tencent.com/projects/blade
 
 Setting up the collection
 -----------------------------
@@ -79,8 +77,7 @@ several symbolic links that enable you to execute blade command.
 
 Reference
 -----------------------------
-    [1] http://code.tencent.com/projects/blade
-    [2] user manual is inside the package
-    [3] developer manual is inside the package
+    [1] user manual is inside the package
+    [2] developer manual is inside the package
 
 Happy testing!

@@ -1,0 +1,11 @@
+namespace cpp pebble
+
+/// @brief 内置广播服务，用于server间广播事件的转发
+service _PebbleBroadcast {
+    /// @brief 用于server间传递广播事件
+    /// @param channel 频道
+    /// @param message 需要广播出去的消息，已经经过编码
+    /// @param encode_type message的编码格式
+    oneway void OnRelay(1:string channel, 2:string message),
+}
+

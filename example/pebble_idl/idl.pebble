@@ -1,0 +1,71 @@
+
+/****************************************************
+                pebble IDL语法说明
+1. 支持基本数据类型：
+    void
+    bool        true or false
+    byte        8位字节
+    i16         16位有符号整数
+    i32         32位有符号整数
+    i64         64位有符号整数
+    i16(u)      16位无符号整数
+    i32(u)      32位无符号整数
+    i64(u)      64位无符号整数
+    double      64位浮点数
+    string      字符串
+    binary      未编码的字节序列
+    list<t1>    指定类型的元素列表
+    set<t1>     指定类型的元素结合，集合中元素唯一
+    map<t1, t2> 两种类型元素的映射
+    
+2. 支持enum、struct、union
+3. 支持service定义
+4. 支持include其他IDL文件（引用其中的数据结构或service）
+5. 其他关键字
+    typedef
+    const
+    oneway      单向请求（不需要响应）
+    required    必选字段
+    optional    可选字段
+    &           引用标识
+****************************************************/
+
+// 指定名字空间
+namespace cpp example
+
+
+/* 定义常量，对复杂数据类型或struct的值使用json格式描述 */
+const i32 MAX_HEAD_LEN = 128
+const i32 MAX_DATA_LEN = 1024
+const string VERSION   = "1.0.0"
+
+
+# 定义枚举，同C语言定义，枚举值为32位有符号整数，可以指定值，不指定时默认从1开始
+enum ErrorCode {
+    NO_ERROR        = 0,
+    INVALID_PARAM   = -1,
+    NOT_FOUND       = -2,
+    MISSING_RESULT  = -3,
+    SYSTEM_ERROR    = -99,
+}
+
+
+// 定义struct，每个字段需要指定唯一的序号（整形），每个字段默认都是必选的，可以使用optional
+// 修饰可选字段，可选字段需要显式设置才会被序列化
+struct UserInfo {
+    1: string name,
+    2: i32 age,
+}
+struct Message {
+    1: i32             _result = ErrorCode.NO_ERROR, // 可以给字段附默认值
+    2: UserInfo        _user,
+    3: optional string _comment,
+}
+
+// 定义服务，服务包含一个或多个接口定义，服务之间可以继承
+service UserInfoManager {
+    Message get_user(1: i64(u) id) (timeoutms=1000),  // 支持给每个接口指定超时时间，不指定时默认为10s
+
+    i64(u) add_user(1: UserInfo user, 2: string comment) (timeoutms=2000),
+}
+

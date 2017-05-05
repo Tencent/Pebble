@@ -1,0 +1,18 @@
+
+// 可以引用其他IDL文件中定义的数据结构和服务，默认在当前目录下查找引用文件，
+// 也可以在代码生成工具指定搜索路径，如 ./pebble -I ../../include
+include "idl.pebble"
+
+// 名字空间可以和include的不同
+namespace cpp example_ex
+
+
+// 使用extends扩展其他服务，这里扩展了idl.pebble文件中定义的UserInfoManager服务，写法为'extends idl.UserInfoManager'
+service UserInfoManagerEx extends idl.UserInfoManager {
+    // oneway 消息表示单向请求，不需要等待任何应答
+    oneway void delete_user(1: i64(u) id),
+    
+    // 可以引用其他IDL文件中定义的数据结构，这里引用了idl.pebble文件中定义的Message，写法为'idl.Message'
+    list<idl.Message> get_user_list(1: list<i64(u)> ids),
+}
+

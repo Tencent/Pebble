@@ -1,0 +1,7 @@
+
+namespace cpp pebble 
+
+struct Exception {
+    1: string message,
+    2: i32 type,
+}

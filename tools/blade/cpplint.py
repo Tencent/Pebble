@@ -2138,10 +2138,9 @@ def CheckComment(comment, filename, linenum, error):
             'Too many spaces before TODO')
 
     username = match.group(2)
-    if not username:
+    if username:
       error(filename, linenum, 'readability/todo', 2,
-            'Missing username in TODO; it should look like '
-            '"// TODO(yourname): Stuff."')
+            'There should be no username in TODO for opensource ')
 
     middle_whitespace = match.group(3)
     # Comparisons made explicit for correctness -- pylint: disable-msg=C6403

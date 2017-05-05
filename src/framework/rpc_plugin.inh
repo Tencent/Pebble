@@ -1,0 +1,60 @@
+/*
+ * Tencent is pleased to support the open source community by making Pebble available.
+ * Copyright (C) 2016 THL A29 Limited, a Tencent company. All rights reserved.
+ * Licensed under the MIT License (the "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at
+ * http://opensource.org/licenses/MIT
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ *
+ */
+
+#ifndef _PEBBLE_FRAMEWORK_RPC_PLUGIN_INH_
+#define _PEBBLE_FRAMEWORK_RPC_PLUGIN_INH_
+
+#include "framework/rpc.h"
+
+namespace pebble {
+
+class PebbleRpc;
+
+class RpcPlugin {
+public:
+    virtual ~RpcPlugin() {}
+    /// @brief @see Rpc::HeadEncode
+    virtual int32_t HeadEncode(const RpcHead& rpc_head, uint8_t* buff, uint32_t buff_len) = 0;
+    /// @brief @see Rpc::HeadDecode
+    virtual int32_t HeadDecode(const uint8_t* buff, uint32_t buff_len, RpcHead* rpc_head) = 0;
+};
+
+class ThriftRpcPlugin : public RpcPlugin {
+public:
+    ThriftRpcPlugin(PebbleRpc* pebble_rpc) : m_pebble_rpc(pebble_rpc) {}
+    virtual ~ThriftRpcPlugin() {}
+
+    virtual int32_t HeadEncode(const RpcHead& rpc_head, uint8_t* buff, uint32_t buff_len);
+
+    virtual int32_t HeadDecode(const uint8_t* buff, uint32_t buff_len, RpcHead* rpc_head);
+
+private:
+    PebbleRpc* m_pebble_rpc;
+};
+
+class ProtoBufRpcPlugin : public RpcPlugin {
+public:
+    explicit ProtoBufRpcPlugin(PebbleRpc* pebble_rpc) : m_pebble_rpc(pebble_rpc) {}
+    virtual ~ProtoBufRpcPlugin() {}
+
+    virtual int32_t HeadEncode(const RpcHead& rpc_head, uint8_t* buff, uint32_t buff_len);
+
+    virtual int32_t HeadDecode(const uint8_t* buff, uint32_t buff_len, RpcHead* rpc_head);
+
+private:
+    PebbleRpc* m_pebble_rpc;
+};
+
+} // namespace pebble
+
+#endif // _PEBBLE_FRAMEWORK_RPC_PLUGIN_INH_

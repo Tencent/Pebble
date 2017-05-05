@@ -1,0 +1,78 @@
+/*
+ * Tencent is pleased to support the open source community by making Pebble available.
+ * Copyright (C) 2016 THL A29 Limited, a Tencent company. All rights reserved.
+ * Licensed under the MIT License (the "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at
+ * http://opensource.org/licenses/MIT
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ *
+ */
+
+
+#ifndef _PEBBLE_EXTENSION_ZOOKEEPER_LOG_H_
+#define _PEBBLE_EXTENSION_ZOOKEEPER_LOG_H_
+
+#include <stdint.h>
+#include <stdio.h>
+#include <string>
+
+namespace pebble {
+
+class RollUtil;
+
+/// @brief zk client log写文件处理
+class ZookeeperLog {
+protected:
+    ZookeeperLog();
+    ZookeeperLog(const ZookeeperLog& rhs) {}
+public:
+    ~ZookeeperLog();
+    static ZookeeperLog* Instance() {
+        static ZookeeperLog s_zk_log;
+        return &s_zk_log;
+    }
+
+    /// @brief 初始化，打开log文件
+    /// @return 0成功，非0失败
+    int32_t Init();
+
+    /// @brief 检查当前log文件大小，若超过最大限制开始滚动
+    /// @return 0 当前log文件大小小于最大滚动限制
+    /// @return <0 文件操作过程中出现错误
+    /// @return >0 完成滚动操作
+    int32_t Update();
+
+    /// @brief 设置日志级别，默认为INFO
+    /// @param level，取值范围{ ZOO_LOG_LEVEL_ERROR = 1,
+    ///                         ZOO_LOG_LEVEL_WARN = 2,
+    ///                         ZOO_LOG_LEVEL_INFO = 3,
+    ///                         ZOO_LOG_LEVEL_DEBUG = 4 }
+    /// @return 0成功，非0失败
+    int32_t SetLogLevel(uint32_t level);
+
+    /// @brief 设置日志文件路径，日志文件名固定为zookeeper.log，滚动规则为zookeeper.log.num
+    /// @param path，日志文件路径，默认为"./"
+    /// @return 0成功，非0失败
+    int32_t SetLogPath(const std::string& path);
+
+    /// @brief 设置文件大小限制，超过设定大小后开始滚动
+    /// @param file_size，文件大小，默认为10M
+    /// @return 0成功，非0失败
+    int32_t SetFileSize(uint32_t file_size);
+
+    /// @brief 设置文件滚动数量，默认为10
+    /// @param roll_num，文件滚动数
+    /// @return 0成功，非0失败
+    int32_t SetRollNum(uint32_t roll_num);
+
+private:
+    RollUtil* m_roll_util;
+};
+
+
+} // namespace pebble
+
+#endif // _PEBBLE_EXTENSION_ZOOKEEPER_LOG_H_

@@ -1,0 +1,7 @@
+2012-04-01 phongchen
+	* 改进: --help 时支持输出彩色
+
+2012-06-01 phongchen
+	* 升级: 到 2.0
+	* 修改问题: gflags.h 中的 guard 宏 BASE_COMMANDLINEFLAGS_H_跟perftools 中的冲突，改回 GFLAGS_GFLAGS_H
+

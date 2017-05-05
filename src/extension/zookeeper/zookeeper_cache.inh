@@ -1,0 +1,83 @@
+/*
+ * Tencent is pleased to support the open source community by making Pebble available.
+ * Copyright (C) 2016 THL A29 Limited, a Tencent company. All rights reserved.
+ * Licensed under the MIT License (the "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at
+ * http://opensource.org/licenses/MIT
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ *
+ */
+
+
+#ifndef _PEBBLE_EXTENSION_ZOOKEEPER_CACHE_H_
+#define _PEBBLE_EXTENSION_ZOOKEEPER_CACHE_H_
+
+#include <set>
+#include <string>
+
+#include "extension/zookeeper/naming_handler.inh"
+#include "extension/zookeeper/zookeeper_naming.h"
+
+
+namespace pebble {
+
+class ZookeeperCache
+{
+    struct CacheInfo {
+        CacheInfo() : _is_watch(false) {}
+        bool        _is_watch;
+        std::string _name;
+        NameInfo    _name_info;
+    };
+public:
+    explicit ZookeeperCache(ZookeeperClient* zookeeper_client);
+    ~ZookeeperCache();
+
+    int SetConfig(int32_t refresh_time_ms, int32_t invalid_time_ms);
+
+    void Clear();
+
+    void SetWatchFunc(const CbNodeChanged& change_cb) {
+        m_value_change_cb = change_cb;
+    }
+
+    bool IsFullPath(const std::string& path) {
+        return (m_cache_infos.end() != m_cache_infos.find(path));
+    }
+
+    int32_t Get(const std::string& name, std::vector<std::string>* urls);
+
+    void OnDelete(const std::string& name);
+
+    void OnGetCb(int rc, GetAllNameResults& results, const CbReturnValue& cb); // NOLINT
+
+    void OnUpdateCb(const std::string& req_name, bool is_watch,
+                         int rc, GetAllNameResults& results, CbReturnValue cb); // NOLINT
+
+    void OnWatchCb(const std::string& req_name,
+                        int rc, GetAllNameResults& results, CbReturnCode cb); // NOLINT
+
+    void Update();
+
+private:
+    void UpdateCache(GetAllNameResults& results, bool is_watch); // NOLINT
+
+    ZookeeperClient*        m_zk_client;
+    CbNodeChanged           m_value_change_cb;
+
+    int32_t                 m_refresh_time_ms; // cache刷新时间间隔，默认300s刷新一次
+    int32_t                 m_invalid_time_ms; // cache数据失效时间间隔，默认700s失效
+
+    int64_t                                 m_curr_time;
+    int64_t                                 m_last_refresh;
+    std::map<std::string, CacheInfo>        m_cache_infos;  // first : 展开后的路径
+    std::map<std::string, bool>             m_cache_keys;   // first : 展开前的路径（请求路径）
+};
+
+
+} // namespace pebble
+
+#endif // _PEBBLE_EXTENSION_ZOOKEEPER_CACHE_H_
