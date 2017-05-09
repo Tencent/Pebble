@@ -22,19 +22,7 @@ python setup.py install
 blade依赖scons 2.0以上版本。如有其他需要，可以到下面地址下载：
 http://www.scons.org/download.php
 
-3、安装zmq
-到http://download.zeromq.org/下载zmq 4.05
-解压后执行
-./autogen.sh 
-./configure 
-make
-make install
-ldconfig
-
-4、安装jdk（如果已安装，可跳过）：
-yum install java-1.6.0-openjdk.x86_64
-
-5、编译所有内容
+3、编译所有内容
 进入项目根目录
 blade build ...
 注：blade是一个编译工具，其文档在：tools/blade/doc

@@ -6,9 +6,8 @@
 │   ├── pebble_cmdline              命令行处理示例
 │   ├── pebble_ctrl_cmd             控制命令处理
 │   ├── pebble_idl                  Pebble IDL语法详细说明
-│   ├── pebble_in_swift             在swift框架中使用Pebble
-│   ├── pebble_in_tapp              在Tapp框架中使用Pebble
 │   └── pebble_server               PebbleServer应用示例
+│   └── protobuf_rpc                PB RPC应用示例
 ├── release                         用于发布打包
 ├── src                             框架源码目录
 │   ├── client                      后台SDK，即PebbleClient
@@ -16,28 +15,14 @@
 │   ├── extension                   扩展库，对接第三方系统的实现
 │   ├── framework                   核心框架，Pebble的基础机制、功能实现
 │   └── server                      后台Server参考实现，即PebbleServer
-├── test                            测试目录
-│   ├── benchmark                   性能测试
-│   ├── ci                          CI
-│   └── stable                      稳定性
 ├── thirdparty                      依赖第3方（原则上都要从源码编译）
-│   ├── gdata_api
 │   ├── gflags
 │   ├── gflags-2.0
-│   ├── glog
-│   ├── glog-0.3.2
-│   ├── google
-│   ├── gtest
-│   ├── gtest-1.6.0
-│   ├── mysql
 │   ├── protobuf
 │   ├── rapidjson
-│   ├── tbuspp
-│   ├── tsf4g
 │   └── zookeeper
 └── tools                           工具目录
     ├── blade                       Blade构建
-    ├── code_format                 代码格式化脚本
     ├── compiler                    IDL编译器
     └── release                     打包脚本
 
@@ -45,7 +30,7 @@
 【开发环境搭建和使用说明】
 ------------------------------------------------------------------------------------------------------------------------
 
-请确保机器已安装python 2.6以上版本。因为python是公司tlinux标配，此处不再赘述如何安装，如有需要自行百度。
+请确保机器已安装python 2.6以上版本。
 第一次使用需要安装必备软件，请使用root登录。
 
 一、编译
