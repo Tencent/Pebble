@@ -648,8 +648,15 @@ void PrintSourceClientMethod(Printer* printer, const Method* method,
         printer->Print("__head.m_message_type = ::pebble::kRPC_CALL;\n");
         printer->Print("__head.m_session_id = m_imp->m_client->GenSessionId();\n\n");
 
-        printer->Print("std::string __data;\n");
-        printer->Print("if (!request.SerializeToString(&__data)) {\n");
+        printer->Print("int __size = request.ByteSize();\n");
+        printer->Print("uint8_t* __buff = m_imp->m_client->GetBuffer(__size);\n");
+        printer->Print("if (__buff == NULL) {\n");
+        printer->Indent();
+        printer->Print("return ::pebble::kPEBBLE_RPC_INSUFFICIENT_MEMORY;\n");
+        printer->Outdent();
+        printer->Print("}\n\n");
+
+        printer->Print("if (!request.SerializeToArray(__buff, __size)) {\n");
         printer->Indent();
         printer->Print("return ::pebble::kRPC_ENCODE_FAILED;\n");
         printer->Outdent();
@@ -659,11 +666,11 @@ void PrintSourceClientMethod(Printer* printer, const Method* method,
         printer->Indent();
         printer->Print(*vars, "::pebble::OnRpcResponse on_rsp = cxx::bind(&$Service$ClientImp::recv_$Method$_sync, m_imp,\n");
         printer->Print("    cxx::placeholders::_1, cxx::placeholders::_2, cxx::placeholders::_3, response);\n");
-        printer->Print(*vars, "return m_imp->m_client->SendRequestSync(m_imp->GetHandle(), __head, (uint8_t*)__data.data(), __data.size(), on_rsp, m_imp->m_methods[\"$Method$\"]);\n");
+        printer->Print(*vars, "return m_imp->m_client->SendRequestSync(m_imp->GetHandle(), __head, __buff, __size, on_rsp, m_imp->m_methods[\"$Method$\"]);\n");
         printer->Outdent();
         printer->Print("} else {\n");
         printer->Indent();
-        printer->Print("return m_imp->m_client->BroadcastRequest(m_imp->m_channel_name, __head, (uint8_t*)__data.data(), __data.size());\n");
+        printer->Print("return m_imp->m_client->BroadcastRequest(m_imp->m_channel_name, __head, __buff, __size);\n");
         printer->Outdent();
         printer->Print("}\n\n");
 
@@ -682,8 +689,15 @@ void PrintSourceClientMethod(Printer* printer, const Method* method,
         printer->Print("__head.m_message_type = ::pebble::kRPC_CALL;\n");
         printer->Print("__head.m_session_id = m_imp->m_client->GenSessionId();\n\n");
 
-        printer->Print("std::string __data;\n");
-        printer->Print("if (!request.SerializeToString(&__data)) {\n");
+        printer->Print("int __size = request.ByteSize();\n");
+        printer->Print("uint8_t* __buff = m_imp->m_client->GetBuffer(__size);\n");
+        printer->Print("if (__buff == NULL) {\n");
+        printer->Indent();
+        printer->Print("return ::pebble::kPEBBLE_RPC_INSUFFICIENT_MEMORY;\n");
+        printer->Outdent();
+        printer->Print("}\n\n");
+
+        printer->Print("if (!request.SerializeToArray(__buff, __size)) {\n");
         printer->Indent();
         printer->Print("return ::pebble::kRPC_ENCODE_FAILED;\n");
         printer->Outdent();
@@ -693,11 +707,11 @@ void PrintSourceClientMethod(Printer* printer, const Method* method,
         printer->Indent();
         printer->Print(*vars, "::pebble::OnRpcResponse on_rsp = cxx::bind(&$Service$ClientImp::recv_$Method$_parallel, m_imp,\n");
         printer->Print("    cxx::placeholders::_1, cxx::placeholders::_2, cxx::placeholders::_3, ret_code, response);\n");
-        printer->Print(*vars, "m_imp->m_client->SendRequestParallel(m_imp->GetHandle(), __head, (uint8_t*)__data.data(), __data.size(), on_rsp, m_imp->m_methods[\"$Method$\"], ret_code, num_called, num_parallel);\n");
+        printer->Print(*vars, "m_imp->m_client->SendRequestParallel(m_imp->GetHandle(), __head, __buff, __size, on_rsp, m_imp->m_methods[\"$Method$\"], ret_code, num_called, num_parallel);\n");
         printer->Outdent();
         printer->Print("} else {\n");
         printer->Indent();
-        printer->Print("*ret_code = m_imp->m_client->BroadcastRequest(m_imp->m_channel_name, __head, (uint8_t*)__data.data(), __data.size());\n");
+        printer->Print("*ret_code = m_imp->m_client->BroadcastRequest(m_imp->m_channel_name, __head, __buff, __size);\n");
         printer->Print("--(*num_called);\n");
         printer->Print("--(*num_parallel);\n");
         printer->Outdent();
@@ -718,8 +732,17 @@ void PrintSourceClientMethod(Printer* printer, const Method* method,
         printer->Print("__head.m_message_type = ::pebble::kRPC_CALL;\n");
         printer->Print("__head.m_session_id = m_imp->m_client->GenSessionId();\n\n");
 
-        printer->Print("std::string __data;\n");
-        printer->Print("if (!request.SerializeToString(&__data)) {\n");
+        printer->Print("int __size = request.ByteSize();\n");
+        printer->Print("uint8_t* __buff = m_imp->m_client->GetBuffer(__size);\n");
+        printer->Print("if (__buff == NULL) {\n");
+        printer->Indent();
+        printer->Print(*vars, "$Response$ __response;\n");
+        printer->Print("cb(::pebble::kPEBBLE_RPC_INSUFFICIENT_MEMORY, __response);\n");
+        printer->Print("return;\n");
+        printer->Outdent();
+        printer->Print("}\n\n");
+
+        printer->Print("if (!request.SerializeToArray(__buff, __size)) {\n");
         printer->Indent();
         printer->Print(*vars, "$Response$ __response;\n");
         printer->Print("cb(::pebble::kRPC_ENCODE_FAILED, __response);\n");
@@ -731,7 +754,7 @@ void PrintSourceClientMethod(Printer* printer, const Method* method,
         printer->Indent();
         printer->Print(*vars, "::pebble::OnRpcResponse on_rsp = cxx::bind(&$Service$ClientImp::recv_$Method$, m_imp,\n");
         printer->Print("    cxx::placeholders::_1, cxx::placeholders::_2, cxx::placeholders::_3, cb);\n");
-        printer->Print(*vars, "int32_t __ret = m_imp->m_client->SendRequest(m_imp->GetHandle(), __head, (uint8_t*)__data.data(), __data.size(), on_rsp, m_imp->m_methods[\"$Method$\"]);\n");
+        printer->Print(*vars, "int32_t __ret = m_imp->m_client->SendRequest(m_imp->GetHandle(), __head, __buff, __size, on_rsp, m_imp->m_methods[\"$Method$\"]);\n");
         printer->Print("if (__ret != ::pebble::kRPC_SUCCESS) {\n");
         printer->Indent();
         printer->Print(*vars, "$Response$ __response;\n");
@@ -742,7 +765,7 @@ void PrintSourceClientMethod(Printer* printer, const Method* method,
         printer->Outdent();
         printer->Print("} else {\n");
         printer->Indent();
-        printer->Print("int32_t __ret = m_imp->m_client->BroadcastRequest(m_imp->m_channel_name, __head, (uint8_t*)__data.data(), __data.size());\n");
+        printer->Print("int32_t __ret = m_imp->m_client->BroadcastRequest(m_imp->m_channel_name, __head, __buff, __size);\n");
         printer->Print("if (__ret != ::pebble::kRPC_SUCCESS) {\n");
         printer->Indent();
         printer->Print(*vars, "$Response$ __response;\n");
@@ -773,7 +796,7 @@ void PrintSourceClientMethod(Printer* printer, const Method* method,
         printer->Outdent();
         printer->Print("}\n\n");
 
-        printer->Print("if (!response->ParseFromString(std::string((const char*)buff, buff_len))) {\n");
+        printer->Print("if (!response->ParseFromArray((const void*)buff, buff_len)) {\n");
         printer->Indent();
         printer->Print("return ::pebble::kRPC_DECODE_FAILED;\n");
         printer->Outdent();
@@ -814,7 +837,7 @@ void PrintSourceClientMethod(Printer* printer, const Method* method,
         printer->Outdent();
         printer->Print("}\n");
 
-        printer->Print("if (!__response.ParseFromString(std::string((const char*)buff, buff_len))) {\n");
+        printer->Print("if (!__response.ParseFromArray((const void*)buff, buff_len)) {\n");
         printer->Indent();
         printer->Print("cb(::pebble::kRPC_DECODE_FAILED, __response);\n");
         printer->Print("return ::pebble::kRPC_DECODE_FAILED;\n");
@@ -847,7 +870,7 @@ void PrintSourceServerMethod(Printer* printer, const Method* method,
     printer->Indent();
 
     printer->Print(*vars, "$Request$ __request;\n");
-    printer->Print("if (!__request.ParseFromString(std::string((const char*)buff, buff_len))) {\n");
+    printer->Print("if (!__request.ParseFromArray((const void*)buff, buff_len)) {\n");
     printer->Indent();
     printer->Print("rsp(::pebble::kPEBBLE_RPC_DECODE_BODY_FAILED, NULL, 0);\n");
     printer->Print("return ::pebble::kPEBBLE_RPC_DECODE_BODY_FAILED;\n");
@@ -869,15 +892,23 @@ void PrintSourceServerMethod(Printer* printer, const Method* method,
         " int32_t ret_code, const $Response$& response) {\n");
     printer->Indent();
 
-    printer->Print("std::string __data;\n");
-    printer->Print("if (!response.SerializeToString(&__data)) {\n");
+    printer->Print("int __size = response.ByteSize();\n");
+    printer->Print("uint8_t* __buff = m_server->GetBuffer(__size);\n");
+    printer->Print("if (__buff == NULL) {\n");
+    printer->Indent();
+    printer->Print("rsp(::pebble::kPEBBLE_RPC_INSUFFICIENT_MEMORY, NULL, 0);\n");
+    printer->Print("return;\n");
+    printer->Outdent();
+    printer->Print("}\n\n");
+
+    printer->Print("if (!response.SerializeToArray(__buff, __size)) {\n");
     printer->Indent();
     printer->Print("rsp(::pebble::kPEBBLE_RPC_ENCODE_BODY_FAILED, NULL, 0);\n");
     printer->Print("return;\n");
     printer->Outdent();
     printer->Print("}\n\n");
 
-    printer->Print("rsp(ret_code, (uint8_t*)__data.data(), __data.size());\n");
+    printer->Print("rsp(ret_code, __buff, __size);\n");
 
     printer->Outdent();
     printer->Print("}\n\n");
@@ -1004,7 +1035,7 @@ void PrintSourceService(Printer* printer, const Service* service,
     printer->Print("}\n\n");
 
     printer->Print("::pebble::OnRpcRequest cb;\n");
-    printer->Print("int32_t ret = 0;\n\n");
+    printer->Print("int32_t ret = ::pebble::kRPC_SUCCESS;\n\n");
 
     for (int i = 0; i < service->method_count(); ++i) {
         (*vars)["Method"] = service->method(i)->name();
@@ -1018,7 +1049,7 @@ void PrintSourceService(Printer* printer, const Service* service,
         printer->Print("}\n\n");
     }
 
-    printer->Print("return ::pebble::kRPC_SUCCESS;\n");
+    printer->Print("return ret;\n");
 
     printer->Outdent();
     printer->Print("}\n\n");

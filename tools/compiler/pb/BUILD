@@ -5,7 +5,7 @@ cc_binary(
         'src/cpp_plugin.cpp',
     ],
     incs = [
-        '../../../thirdparty/protobuf/include',
+        '../../../thirdparty/protobuf/include/',
     ],
     deps = [
         '//src/common:pebble_common',

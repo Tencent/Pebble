@@ -1,17 +1,18 @@
 # make file for examples
 
 BASE_PATH = ../..
-PEBBLE = $(BASE_PATH)/tools/pebble
+PROTOC = $(BASE_PATH)/tools/protoc
+PB_RPC_PLUGIN = $(BASE_PATH)/tools/protobuf_rpc
 
 INC_PATH = $(BASE_PATH)/include
 LIB_PATH =  $(BASE_PATH)/lib
 PEBBLE_LIB = $(LIB_PATH)/pebble
 THIRDPATY = $(LIB_PATH)/thirdparty
 
-PEBBLE_IDL = calculator.pebble
-PEBBLE_SRC = calculator.cpp calculator_Calculator.cpp
-PEBBLE_H = calculator.h calculator_Calculator.h calculator_Calculator.inh
-PEBBLE_OBJ = $(subst .cpp,.o, $(PEBBLE_SRC))
+PROTOBUF_IDL = calculator.proto
+PROTOBUF_SRC = calculator.pb.cc calculator.rpc.pb.cc
+PROTOBUF_H = calculator.pb.h calculator.rpc.pb.h calculator.rpc.pb.inh
+PROTOBUF_OBJ = $(subst .cc,.o, $(PROTOBUF_SRC))
 
 SERVER_SRC = server.cpp 
 SERVER_OBJ = $(subst .cpp,.o, $(SERVER_SRC))
@@ -24,9 +25,9 @@ CLIENT = client
 INC_FLAGS = -I$(BASE_PATH) -I$(INC_PATH)/pebble -I$(INC_PATH)/thirdparty
 
 LD_FLAGS = -L$(PEBBLE_LIB) -L$(THIRDPATY) \
-	-lpebble
+	-lpebble -lprotobuf
 LD_FLAGS_CLIENT = -L$(PEBBLE_LIB) -L$(THIRDPATY) \
-	-lpebble_client
+	-lpebble_client -lprotobuf
         
 CC_FLAGS = -g -Wall -Werror $(INC_FLAGS)
 
@@ -36,18 +37,22 @@ CC = g++
 
 all: $(SERVER) $(CLIENT)
 
-$(SERVER): $(PEBBLE_OBJ) $(SERVER_OBJ)
+$(SERVER): $(PROTOBUF_OBJ) $(SERVER_OBJ)
 	$(CC) -o $@ $^ $(LD_FLAGS)
 
-$(CLIENT): $(PEBBLE_OBJ) $(CLIENT_OBJ) 
+$(CLIENT): $(PROTOBUF_OBJ) $(CLIENT_OBJ) 
 	$(CC) -o $@ $^ $(LD_FLAGS_CLIENT)
 
-$(PEBBLE_SRC): $(PEBBLE_IDL)
-	$(PEBBLE) -r -out ./ --gen cpp $<
+$(PROTOBUF_SRC): $(PROTOBUF_IDL)
+	$(PROTOC) --cpp_out=./ $<
+	$(PROTOC) --plugin=protoc-gen-rpc=$(PB_RPC_PLUGIN) --rpc_out=./ $<
 
 %.o: %.cpp
-	$(CC) -o $@ -c $< $(CC_FLAGS)
+	$(CC) $(CC_FLAGS) -o $@ -c $< 
+
+%.o: %.cc
+	$(CC) $(CC_FLAGS) -o $@ -c $< 
 
 clean: 
-	rm -rf $(SERVER) $(CLIENT) ./*.o ./log $(PEBBLE_SRC) $(PEBBLE_H) 
+	rm -rf $(SERVER) $(CLIENT) ./*.o ./log $(PROTOBUF_SRC) $(PROTOBUF_H) 
 

@@ -69,8 +69,32 @@ int32_t Naming::MakeTbusppUrl(const std::string& name, int64_t inst_id, std::str
     return 0;
 }
 
+int32_t Naming::FormatNameStr(std::string* name)
+{
+    if (NULL == name || name->empty()) {
+        return -1;
+    }
+    // 如果name不含有'/'则将'.'转为'/'
+    if (std::string::npos == name->find('/')) {
+        uint64_t pos = name->find('.');
+        while (std::string::npos != pos) {
+            name->at(pos) = '/';
+            pos = name->find('.', pos);
+        }
+    }
+    // 开始处没有'/'，则补上
+    if (name->at(0) != '/') {
+        name->insert(0, 1, '/');
+    }
+    // 结尾处有'/'，则去掉
+    if (name->size() > 1 && name->at(name->size() - 1) == '/') {
+        name->erase(name->size() - 1, 1);
+    }
+    return 0;
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
-// ����ȫ�ֱ������졢����˳������
+// 避免全局变量构造、析构顺序问题
 static cxx::unordered_map<int32_t, NamingFactory*> * g_naming_factory_map = NULL;
 struct NamingFactoryMapHolder {
     NamingFactoryMapHolder() {

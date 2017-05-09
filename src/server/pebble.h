@@ -32,6 +32,8 @@
 #include "framework/router.h"
 #include "framework/session.h"
 #include "framework/stat.h"
+#include "framework/when_all.h"
+#include "server/pebble_cmdline.h"
 #include "server/pebble_server.h"
 #include "framework/when_all.h"
 

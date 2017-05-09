@@ -31,6 +31,7 @@ typedef enum {
     kPEBBLE_RPC_MSG_LENGTH_ERROR        = kPEBBLE_RPC_ERROR_BASE - 8,  // 消息长度错误
     kPEBBLE_RPC_SERVICE_ALREADY_EXISTED = kPEBBLE_RPC_ERROR_BASE - 9,  // 服务已经注册
     kPEBBLE_RPC_SERVICE_ADD_FAILED      = kPEBBLE_RPC_ERROR_BASE - 10, // 服务注册失败
+    kPEBBLE_RPC_INSUFFICIENT_MEMORY     = kPEBBLE_RPC_ERROR_BASE - 11, // 内存不足
 } PebbleRpcErrorCode;
 
 /// @brief Pebble RPC消息编码类型定义
@@ -79,6 +80,10 @@ public:
     /// @note 内部使用，用户无需关注
     dr::protocol::TProtocol* GetCodec(MemoryPolicy mem_policy);
 
+    /// @brief 获取内存buffer
+    /// @note 内部使用，用户无需关注
+    uint8_t* GetBuffer(int32_t size);
+
     /// @brief stub同步发送接口
     /// @note 内部使用，用户无需关注
     int32_t SendRequestSync(int64_t handle,
@@ -121,6 +126,8 @@ protected:
     RpcPlugin* m_rpc_plugin;
     RpcUtil* m_rpc_util;
     dr::protocol::TProtocol* m_codec_array[kPOLICY_BUTT];
+    uint8_t* m_buff;
+    int32_t m_buff_size;
     cxx::unordered_map<std::string, cxx::shared_ptr<IPebbleRpcService> > m_services;
 };
 

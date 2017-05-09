@@ -100,6 +100,8 @@ public:
                                  int64_t inst_id,
                                  std::string* url);
 
+    static int32_t FormatNameStr(std::string* name);
+
 public:
     // 下面为名字服务的扩展接口
     virtual int32_t Register(const std::string& name,

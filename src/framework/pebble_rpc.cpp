@@ -36,6 +36,7 @@ public:
         SetErrorString(kPEBBLE_RPC_MSG_LENGTH_ERROR, "msg length error");
         SetErrorString(kPEBBLE_RPC_SERVICE_ALREADY_EXISTED, "service already exist");
         SetErrorString(kPEBBLE_RPC_SERVICE_ADD_FAILED, "add service failed");
+        SetErrorString(kPEBBLE_RPC_INSUFFICIENT_MEMORY, "infufficient memory");
     }
 };
 static PebbleRpcErrorStringRegister s_pebble_rpc_error_string_register;
@@ -59,6 +60,8 @@ PebbleRpc::PebbleRpc(CodeType code_type, CoroutineSchedule* coroutine_schedule) 
     for (int32_t i = 0; i < kPOLICY_BUTT; i++) {
         m_codec_array[i] = NULL;
     }
+    m_buff = NULL;
+    m_buff_size = 0;
 }
 
 PebbleRpc::~PebbleRpc() {
@@ -68,6 +71,8 @@ PebbleRpc::~PebbleRpc() {
     for (int32_t i = 0; i < kPOLICY_BUTT; i++) {
         delete m_codec_array[i];
     }
+    free(m_buff);
+    m_buff_size = 0;
 }
 
 dr::protocol::TProtocol* PebbleRpc::GetCodec(MemoryPolicy mem_policy) {
@@ -115,6 +120,25 @@ dr::protocol::TProtocol* PebbleRpc::GetCodec(MemoryPolicy mem_policy) {
 
     m_codec_array[mem_policy] = codec;
     return codec;
+}
+
+uint8_t* PebbleRpc::GetBuffer(int32_t size) {
+    static const int32_t max_buff_size = 1024 * 1024 * 8;
+    if (m_buff != NULL && size <= m_buff_size) {
+        return m_buff;
+    }
+    if (size > max_buff_size) {
+        return NULL;
+    }
+    // 2 * size or max_buff_size
+    int32_t need_realloc = std::min(size + size - m_buff_size, max_buff_size - m_buff_size);
+    uint8_t* new_buff = (uint8_t*)realloc(m_buff, need_realloc);
+    if (new_buff == NULL) {
+        return NULL;
+    }
+    m_buff = new_buff;
+    m_buff_size += need_realloc;
+    return m_buff;
 }
 
 int32_t PebbleRpc::SendRequestSync(int64_t handle,

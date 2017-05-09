@@ -9,7 +9,7 @@ tools_path=$pebble_home/release/$build_sys/tools
 
 function copy_file_list()
 {
-    while read src_file dst_path 
+    while read src_file dst_path
     do
         mkdir -p $pebble_home/release/$build_sys/$2/$dst_path
         cp -rfv $pebble_home/$1/$src_file $pebble_home/release/$build_sys/$2/$dst_path
@@ -42,7 +42,7 @@ function copy_library_files()
 function copy_include_files()
 {
     echo ===== Copy include files =====
-    
+
     copy_file_list "thirdparty" "include/thirdparty" <<- INC_LIST
         rapidjson/*.h                                       rapidjson/
         rapidjson/error/*.h                                 rapidjson/error/
@@ -50,6 +50,7 @@ function copy_include_files()
         rapidjson/msinttypes/*.h                            rapidjson/msinttypes/
         zookeeper/include/*                                 zookeeper/include/
         gflags-2.0/src/gflags/*.h                           gflags/
+        protobuf/include/*                                  ./
 	INC_LIST
 
     copy_file_list "src" "include/pebble" <<- INC_LIST
@@ -79,9 +80,13 @@ function copy_tool_files()
         compiler/pb/protobuf_rpc                        ./
 	TOOL_LIST
 
+    copy_file_list "thirdparty/protobuf/bin/" "tools" <<- TOOL_LIST
+        protoc                                          ./
+	TOOL_LIST
+
     chmod a+x $tools_path/pebble
-    strip -s  $tools_path/pebble
     chmod a+x $tools_path/protobuf_rpc
+    strip -s  $tools_path/pebble
     strip -s  $tools_path/protobuf_rpc
 }
 
@@ -115,12 +120,12 @@ function combine_pebble_libs()
     ar x $pebble_lib_path/libpebble_framework.a
     ar x $pebble_lib_path/libpebble_server.a
     ar x $pebble_lib_path/libpebble_zookeeper.a
-    
+
     mkdir -p $pebble_lib_s_path
     rm $pebble_lib_s_path/libpebble.a
-    
+
     ar -rcs $pebble_lib_s_path/libpebble.a *.o
-    
+
     rm *.o
 
     echo ar libpebble_client.a
@@ -131,13 +136,13 @@ function combine_pebble_libs()
     ar x $pebble_lib_path/libpebble_zookeeper.a
 
     rm $pebble_lib_s_path/libpebble_client.a
-    
+
     ar -rcs $pebble_lib_s_path/libpebble_client.a *.o
-    
+
     rm *.o
 
     rm $pebble_lib_path -rf
-    
+
 }
 
 function copy_file_all()

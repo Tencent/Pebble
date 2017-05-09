@@ -32,6 +32,7 @@ Router::Router(const std::string& name_path)
     :   m_route_name(name_path), m_route_type(kROUND_ROUTE),
         m_route_policy(NULL), m_naming(NULL)
 {
+    Naming::FormatNameStr(&m_route_name);
 }
 
 Router::~Router()

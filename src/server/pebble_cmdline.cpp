@@ -32,7 +32,7 @@ namespace pebble {
 DEFINE_bool(start,   false,  "start this process as a daemon.");
 DEFINE_bool(stop,    false,  "request previous process to stop safely.");
 DEFINE_bool(reload,  false,  "request previous process to reload configuration.");
-DEFINE_string(conf_file, "../cfg/pebble.ini", "specify config file.");
+DEFINE_string(conf_file, "", "specify config file.");
 DEFINE_string(pid_file,  "", "specify the file for storing the process's pid.");
 
 
