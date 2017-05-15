@@ -409,9 +409,9 @@ void BroadcastRelayHandler::OnRelay(const std::string& channel, const std::strin
 
     // 分发给自己的广播消息处理程序
     // TODO: 目前默认支持固定协议，有接口(Attach)扩展
-    uint32_t is_overload = 0; // 过载在m_broadcast_mgr->send处处理
+    // 过载在m_broadcast_mgr->send处处理
     m_broadcast_mgr->GetProcessor()->OnMessage(-1,
-        (const uint8_t*)(message.data()), message.length(), is_overload);
+        (const uint8_t*)(message.data()), message.length(), NULL, 0);
 
     // 分发给接入本server的订阅者
     m_broadcast_mgr->Send(channel, (const uint8_t*)(message.data()), message.length(), false);

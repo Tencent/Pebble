@@ -291,7 +291,7 @@ int32_t PebbleClient::ProcessMessage() {
 
     const uint8_t* msg = NULL;
     uint32_t msg_len   = 0;
-    MsgExternInfo msg_info = {0};
+    MsgExternInfo msg_info;
     ret = Message::Peek(handle, &msg, &msg_len, &msg_info);
     do {
         if (kMESSAGE_RECV_EMPTY == ret) {
@@ -309,7 +309,7 @@ int32_t PebbleClient::ProcessMessage() {
             break;
         }
 
-        it->second->OnMessage(msg_info._remote_handle, msg, msg_len, 0);
+        it->second->OnMessage(msg_info._remote_handle, msg, msg_len, &msg_info, 0);
         Message::Pop(handle);
     } while (0);
 

@@ -131,8 +131,8 @@ int32_t RawMessageDriver::SendV(int64_t handle, uint32_t msg_frag_num,
         tmp_frag_len[0] = sizeof(TcpMsgHead);
 
         int32_t ret = m_net_message->SendV(handle, msg_frag_num + 1, tmp_frags, tmp_frag_len);
-        delete tmp_frags;
-        delete tmp_frag_len;
+        delete [] tmp_frags;
+        delete [] tmp_frag_len;
         return ret;
     } else {
         return m_net_message->SendV(handle, msg_frag_num, msg_frag, msg_frag_len);

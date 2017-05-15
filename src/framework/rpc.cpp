@@ -16,7 +16,6 @@
 
 #include "common/timer.h"
 #include "common/time_utility.h"
-#include "framework/message.h"
 #include "framework/rpc.h"
 
 namespace pebble {
@@ -48,6 +47,9 @@ static RpcErrorStringRegister s_rpc_error_string_register;
 
 /// @brief RPC会话数据结构定义
 struct RpcSession {
+private:
+    RpcSession(const RpcSession& rhs) {}
+public:
     RpcSession() {
         m_session_id  = 0;
         m_handle      = 0;
@@ -66,23 +68,21 @@ struct RpcSession {
 };
 
 
-Rpc::Rpc() {
+IRpc::IRpc() {
     m_session_id        = 0;
     m_timer             = new SequenceTimer();
-    m_last_error[0]     = 0;
-    m_rpc_event_handler = NULL;
     m_task_num          = 0;
     m_latest_handle     = -1;
 }
 
-Rpc::~Rpc() {
+IRpc::~IRpc() {
     if (m_timer) {
         delete m_timer;
         m_timer = NULL;
     }
 }
 
-int32_t Rpc::Update() {
+int32_t IRpc::Update() {
     int32_t num = 0;
     if (m_timer) {
         num += m_timer->Update();
@@ -91,46 +91,32 @@ int32_t Rpc::Update() {
     return num;
 }
 
-int32_t Rpc::SetSendFunction(const SendFunction& send, const SendVFunction& sendv) {
-    if (!send || !sendv) {
-        _LOG_LAST_ERROR("param invalid: !send = %d, !sendv = %d", !send, !sendv);
-        return kRPC_INVALID_PARAM;
-    }
-    m_send  = send;
-    m_sendv = sendv;
-    return 0;
-}
+int32_t IRpc::OnMessage(int64_t handle, const uint8_t* msg,
+    uint32_t msg_len, const MsgExternInfo* msg_info, uint32_t is_overload) {
 
-int32_t Rpc::SetBroadcastFunction(const BroadcastFunction& broadcast,
-    const BroadcastVFunction& broadcastv) {
-    m_broadcast  = broadcast;
-    m_broadcastv = broadcastv;
-    return 0;
-}
-
-int32_t Rpc::OnMessage(int64_t handle, const uint8_t* buff,
-    uint32_t buff_len, uint32_t is_overload) {
-
-    if (NULL == buff || 0 == buff_len) {
-        _LOG_LAST_ERROR("param invalid: buff = %p, buff_len = %u", buff, buff_len);
+    if (NULL == msg || 0 == msg_len) {
+        _LOG_LAST_ERROR("param invalid: buff = %p, buff_len = %u", msg, msg_len);
         return kRPC_INVALID_PARAM;
     }
 
     RpcHead head;
 
-    int32_t head_len = HeadDecode(buff, buff_len, &head);
+    int32_t head_len = HeadDecode(msg, msg_len, &head);
     if (head_len < 0) {
         _LOG_LAST_ERROR("HeadDecode failed(%d).", head_len);
         return kRPC_DECODE_FAILED;
     }
 
-    if (head_len > static_cast<int32_t>(buff_len)) {
-        _LOG_LAST_ERROR("head_len(%d) > buff_len(%u)", head_len, buff_len);
+    if (head_len > static_cast<int32_t>(msg_len)) {
+        _LOG_LAST_ERROR("head_len(%d) > buff_len(%u)", head_len, msg_len);
         return kRPC_DECODE_FAILED;
     }
 
-    const uint8_t* data = buff + head_len;
-    uint32_t data_len   = buff_len - head_len;
+    if (msg_info) {
+        head.m_dst = (IProcessor*)(msg_info->_src);
+    }
+    const uint8_t* data = msg + head_len;
+    uint32_t data_len   = msg_len - head_len;
 
     int32_t ret = kRPC_UNKNOWN_TYPE;
     switch (head.m_message_type) {
@@ -158,7 +144,7 @@ int32_t Rpc::OnMessage(int64_t handle, const uint8_t* buff,
     return ret;
 }
 
-int32_t Rpc::AddOnRequestFunction(const std::string& name, const OnRpcRequest& on_request) {
+int32_t IRpc::AddOnRequestFunction(const std::string& name, const OnRpcRequest& on_request) {
     if (name.empty() || !on_request) {
         _LOG_LAST_ERROR("param invalid: name = %s, !on_request = %u", name.c_str(), !on_request);
         return kRPC_INVALID_PARAM;
@@ -174,11 +160,11 @@ int32_t Rpc::AddOnRequestFunction(const std::string& name, const OnRpcRequest& o
     return kRPC_SUCCESS;
 }
 
-int32_t Rpc::RemoveOnRequestFunction(const std::string& name) {
+int32_t IRpc::RemoveOnRequestFunction(const std::string& name) {
     return m_service_map.erase(name) == 1 ? kRPC_SUCCESS : kRPC_FUNCTION_NAME_UNEXISTED;
 }
 
-void Rpc::GetResourceUsed(cxx::unordered_map<std::string, int64_t>* resource_info) {
+void IRpc::GetResourceUsed(cxx::unordered_map<std::string, int64_t>* resource_info) {
     if (!resource_info) {
         return;
     }
@@ -192,7 +178,7 @@ void Rpc::GetResourceUsed(cxx::unordered_map<std::string, int64_t>* resource_inf
     return;
 }
 
-int32_t Rpc::SendRequest(int64_t handle,
+int32_t IRpc::SendRequest(int64_t handle,
                     const RpcHead& rpc_head,
                     const uint8_t* buff,
                     uint32_t buff_len,
@@ -205,7 +191,7 @@ int32_t Rpc::SendRequest(int64_t handle,
     }
 
     // 发送请求
-    int32_t ret = Send(handle, rpc_head, buff, buff_len);
+    int32_t ret = SendMessage(handle, rpc_head, buff, buff_len);
     if (ret != kRPC_SUCCESS) {
         _LOG_LAST_ERROR("send failed(%d)", ret);
         OnResponseProcComplete(rpc_head.m_function_name, kRPC_SEND_FAILED, 0);
@@ -225,7 +211,7 @@ int32_t Rpc::SendRequest(int64_t handle,
     session->m_rsp         = on_rsp;
     session->m_rpc_head    = rpc_head;
     session->m_server_side = false;
-    TimeoutCallback cb     = cxx::bind(&Rpc::OnTimeout, this, session->m_session_id);
+    TimeoutCallback cb     = cxx::bind(&IRpc::OnTimeout, this, session->m_session_id);
 
     if (timeout_ms <= 0) {
         timeout_ms = 10 * 1000;
@@ -238,7 +224,7 @@ int32_t Rpc::SendRequest(int64_t handle,
     return kRPC_SUCCESS;
 }
 
-int32_t Rpc::BroadcastRequest(const std::string& name,
+int32_t IRpc::BroadcastRequest(const std::string& name,
                     const RpcHead& rpc_head,
                     const uint8_t* buff,
                     uint32_t buff_len) {
@@ -263,7 +249,7 @@ int32_t Rpc::BroadcastRequest(const std::string& name,
     return num >= 0 ? kRPC_SUCCESS : kPRC_BROADCAST_FAILED;
 }
 
-int32_t Rpc::SendResponse(uint64_t session_id, int32_t ret,
+int32_t IRpc::SendResponse(uint64_t session_id, int32_t ret,
     const uint8_t* buff, uint32_t buff_len) {
 
     cxx::unordered_map< uint64_t, cxx::shared_ptr<RpcSession> >::iterator it =
@@ -278,7 +264,7 @@ int32_t Rpc::SendResponse(uint64_t session_id, int32_t ret,
     int32_t result = kRPC_SUCCESS;
     if (kRPC_SUCCESS == ret) {
         it->second->m_rpc_head.m_message_type = kRPC_REPLY;
-        ret = Send(it->second->m_handle, it->second->m_rpc_head, buff, buff_len);
+        ret = SendMessage(it->second->m_handle, it->second->m_rpc_head, buff, buff_len);
     } else {
         result = ResponseException(it->second->m_handle, ret, it->second->m_rpc_head, buff, buff_len);
     }
@@ -297,7 +283,7 @@ int32_t Rpc::SendResponse(uint64_t session_id, int32_t ret,
     return ret;
 }
 
-int32_t Rpc::Send(int64_t handle, const RpcHead& rpc_head,
+int32_t IRpc::SendMessage(int64_t handle, const RpcHead& rpc_head,
     const uint8_t* buff, uint32_t buff_len) {
     int32_t head_len = HeadEncode(rpc_head, m_rpc_head_buff, sizeof(m_rpc_head_buff));
     if (head_len < 0) {
@@ -308,10 +294,15 @@ int32_t Rpc::Send(int64_t handle, const RpcHead& rpc_head,
     const uint8_t* msg_frag[] = { m_rpc_head_buff, buff     };
     uint32_t msg_frag_len[]   = { head_len       , buff_len };
 
-    return m_sendv(handle, sizeof(msg_frag)/sizeof(*msg_frag), msg_frag, msg_frag_len, 0);
+    // 消息原路返回，如果有消息来源，则返回到来源点，如果无消息来源，走默认发送流程
+    if (rpc_head.m_dst) {
+        return rpc_head.m_dst->SendV(handle, sizeof(msg_frag)/sizeof(*msg_frag), msg_frag, msg_frag_len, 0);
+    }
+
+    return SendV(handle, sizeof(msg_frag)/sizeof(*msg_frag), msg_frag, msg_frag_len, 0);
 }
 
-int32_t Rpc::OnTimeout(uint64_t session_id) {
+int32_t IRpc::OnTimeout(uint64_t session_id) {
     cxx::unordered_map< uint64_t, cxx::shared_ptr<RpcSession> >::iterator it =
         m_session_map.find(session_id);
     if (m_session_map.end() == it) {
@@ -339,12 +330,12 @@ int32_t Rpc::OnTimeout(uint64_t session_id) {
     return kTIMER_BE_REMOVED;
 }
 
-int32_t Rpc::ProcessRequest(int64_t handle, const RpcHead& rpc_head,
+int32_t IRpc::ProcessRequest(int64_t handle, const RpcHead& rpc_head,
     const uint8_t* buff, uint32_t buff_len) {
     return ProcessRequestImp(handle, rpc_head, buff, buff_len);
 }
 
-int32_t Rpc::ProcessRequestImp(int64_t handle, const RpcHead& rpc_head,
+int32_t IRpc::ProcessRequestImp(int64_t handle, const RpcHead& rpc_head,
     const uint8_t* buff, uint32_t buff_len) {
 
     cxx::unordered_map<std::string, OnRpcRequest>::iterator it =
@@ -370,7 +361,7 @@ int32_t Rpc::ProcessRequestImp(int64_t handle, const RpcHead& rpc_head,
     session->m_rpc_head    = rpc_head;
     session->m_server_side = true;
 
-    TimeoutCallback cb     = cxx::bind(&Rpc::OnTimeout, this, session->m_session_id);
+    TimeoutCallback cb     = cxx::bind(&IRpc::OnTimeout, this, session->m_session_id);
     session->m_timerid     = m_timer->StartTimer(REQ_PROC_TIMEOUT_MS, cb);
     session->m_start_time  = TimeUtility::GetCurrentMS();
 
@@ -378,13 +369,13 @@ int32_t Rpc::ProcessRequestImp(int64_t handle, const RpcHead& rpc_head,
     m_task_num++;
 
     cxx::function<int32_t(int32_t, const uint8_t*, uint32_t)> rsp = cxx::bind( // NOLINT
-        &Rpc::SendResponse, this, session->m_session_id,
+        &IRpc::SendResponse, this, session->m_session_id,
         cxx::placeholders::_1, cxx::placeholders::_2, cxx::placeholders::_3);
 
     return (it->second)(buff, buff_len, rsp);
 }
 
-int32_t Rpc::ProcessResponse(const RpcHead& rpc_head,
+int32_t IRpc::ProcessResponse(const RpcHead& rpc_head,
     const uint8_t* buff, uint32_t buff_len) {
 
     cxx::unordered_map< uint64_t, cxx::shared_ptr<RpcSession> >::iterator it =
@@ -430,7 +421,7 @@ int32_t Rpc::ProcessResponse(const RpcHead& rpc_head,
     return ret;
 }
 
-int32_t Rpc::ResponseException(int64_t handle, int32_t ret, const RpcHead& rpc_head,
+int32_t IRpc::ResponseException(int64_t handle, int32_t ret, const RpcHead& rpc_head,
     const uint8_t* buff, uint32_t buff_len) {
 
     (const_cast<RpcHead&>(rpc_head)).m_message_type = kRPC_EXCEPTION;
@@ -447,20 +438,20 @@ int32_t Rpc::ResponseException(int64_t handle, int32_t ret, const RpcHead& rpc_h
         len = 0;
     }
 
-    return Send(handle, rpc_head, m_rpc_exception_buff, len);
+    return SendMessage(handle, rpc_head, m_rpc_exception_buff, len);
 }
 
-void Rpc::OnRequestProcComplete(const std::string& name,
+void IRpc::OnRequestProcComplete(const std::string& name,
     int32_t result, int32_t time_cost_ms) {
-    if (m_rpc_event_handler) {
-        m_rpc_event_handler->OnRequestProcComplete(name, result, time_cost_ms);
+    if (m_event_handler) {
+        m_event_handler->OnRequestProcComplete(name, result, time_cost_ms);
     }
 }
 
-void Rpc::OnResponseProcComplete(const std::string& name,
+void IRpc::OnResponseProcComplete(const std::string& name,
     int32_t result, int32_t time_cost_ms) {
-    if (m_rpc_event_handler) {
-        m_rpc_event_handler->OnResponseProcComplete(name, result, time_cost_ms);
+    if (m_event_handler) {
+        m_event_handler->OnResponseProcComplete(name, result, time_cost_ms);
     }
 }
 

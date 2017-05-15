@@ -43,6 +43,7 @@
 
 namespace pebble {
 
+static const char* prefix_tbuspp = "tbuspp://";
 
 std::string PebbleServer::m_version;
 
@@ -350,9 +351,33 @@ int32_t PebbleServer::Init(AppEventHandler* event_handler) {
     return 0;
 }
 
-int64_t PebbleServer::Bind(const std::string &url) {
+int64_t PebbleServer::Bind(const std::string &url, bool register_name) {
     int64_t handle = Message::Bind(url);
-    PLOG_IF_ERROR(handle < 0, "bind %s failed(%ld:%s)", url.c_str(), handle, Message::GetLastError());
+    if (handle < 0) {
+        PLOG_ERROR("bind %s failed(%ld:%s)", url.c_str(), handle, Message::GetLastError());
+        return handle;
+    }
+    // bind成功后注册名字只对tbuspp有效，目前tbuspp名字和传输耦合较紧，解耦后可适用其他传输协议
+    if (register_name && StringUtility::StartsWith(url, prefix_tbuspp)) {
+        Naming* naming = GetNaming();
+        if (naming == NULL) {
+            Message::Close(handle);
+            PLOG_ERROR("bind %s success, but get naming failed", url.c_str());
+            return -1;
+        }
+        // url 格式为 tbuspp://appid.path.name/instanceid
+        std::string service_name(url);
+        StringUtility::StripPrefix(&service_name, prefix_tbuspp);   // 去掉 "tbuspp://"
+        service_name.resize(service_name.find_last_of('/'));        // 去掉 "/instanceid"
+        StringUtility::string_replace(".", "/", &service_name);     // tbuspp名字用'/'分隔，名字前要有'/'
+        int32_t ret = naming->Register("/" + service_name, url, m_options._app_instance_id);
+        if (ret != 0) {
+            Message::Close(handle);
+            PLOG_ERROR("register name %s url %s failed(%d:%s)", service_name.c_str(), url.c_str(),
+                ret, naming->GetLastError());
+            return -1;
+        }
+    }
     return handle;
 }
 
@@ -398,7 +423,12 @@ int32_t PebbleServer::Attach(int64_t handle, IProcessor* processor) {
         return -1;
     }
 
-    m_processor_map[handle] = processor;
+    std::pair<cxx::unordered_map<int64_t, IProcessor*>::iterator, bool> ret =
+        m_processor_map.insert(std::pair<int64_t, IProcessor*>(handle, processor));
+    if (!ret.second) {
+        PLOG_ERROR("handle %ld is already attach to Processor %p", handle, processor);
+        return -1;
+    }
     return 0;
 }
 
@@ -629,7 +659,7 @@ int32_t PebbleServer::ProcessMessage() {
 
     const uint8_t* msg = NULL;
     uint32_t msg_len   = 0;
-    MsgExternInfo msg_info = {0};
+    MsgExternInfo msg_info;
     ret = Message::Peek(handle, &msg, &msg_len, &msg_info);
     do {
         if (kMESSAGE_RECV_EMPTY == ret) {
@@ -653,7 +683,7 @@ int32_t PebbleServer::ProcessMessage() {
             m_task_monitor->SetTaskNum(m_coroutine_schedule->Size()); // 内部实现暂使用协程数
             m_is_overload = m_monitor_centor->IsOverLoad();
         }
-        it->second->OnMessage(msg_info._remote_handle, msg, msg_len, m_is_overload);
+        it->second->OnMessage(msg_info._remote_handle, msg, msg_len, &msg_info, m_is_overload);
         Message::Pop(handle);
     } while (0);
 

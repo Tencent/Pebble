@@ -55,7 +55,7 @@ class TProtocol;
 
 /// @brief PebbleRpc封装同步、并行处理，服务注册等基本能力，和IDL无关
 /// 框架内部通用能力如异常处理等编解码使用dr完成
-class PebbleRpc : public Rpc {
+class PebbleRpc : public IRpc {
 public:
     PebbleRpc(CodeType code_type, CoroutineSchedule* coroutine_schedule);
     virtual ~PebbleRpc();

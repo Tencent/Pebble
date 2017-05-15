@@ -35,6 +35,7 @@ namespace pebble {
 /// @brief 每个模块错误码BASE定义，模块错误码取值为XXX_BASE - N
 enum ERROR_CODE_BASE {
     NO_ERROR                    = 0,
+    PROCESSOR_ERROR_CODE_BASE   = -500,
     RPC_ERROR_CODE_BASE         = -1000,
     SESSION_ERROR_CODE_BASE     = -2000,
     MESSAGE_ERROR_CODE_BASE     = -3000,

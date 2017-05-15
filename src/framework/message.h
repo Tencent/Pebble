@@ -44,10 +44,28 @@ typedef enum {
     kMESSAGE_UNKNOWN_CONNECTION     =   MESSAGE_ERROR_CODE_BASE - 19,   ///< 未知的连接
 }MessageErrorCode;
 
+/// @brief 消息相关信息，message收到消息后除了递交消息本身到业务模块外，还需提供消息附属信息
+///     这个附属信息在上层各业务模块间流动，业务模块按需使用这些信息
 struct MsgExternInfo {
-    int64_t     _self_handle;       // bind或connect获得的handle
-    int64_t     _remote_handle;     // 远端handle
-    int64_t     _msg_arrived_ms;    // 消息到达时间
+    MsgExternInfo() {
+        _self_handle    = -1;
+        _remote_handle  = -1;
+        _msg_arrived_ms = 0;
+        _src            = NULL;
+    }
+    MsgExternInfo(const MsgExternInfo& rhs) {
+        _self_handle    = rhs._self_handle;
+        _remote_handle  = rhs._remote_handle;
+        _msg_arrived_ms = rhs._msg_arrived_ms;
+        _src            = rhs._src;
+    }
+
+    int64_t         _self_handle;       // bind或connect获得的handle
+    int64_t         _remote_handle;     // 远端handle
+    // int64_t         _channel;
+    int64_t         _msg_arrived_ms;    // 消息到达时间
+
+    void*           _src;               // 消息源，由消息分发模块填写，方便消息在各模块间往返
 };
 
 /// @brief 网络驱动接口

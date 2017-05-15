@@ -61,6 +61,7 @@ cc_library(
         'net_message.cpp',
         'options.cpp',
         'pebble_rpc.cpp',
+        'processor.cpp',
         'protobuf_rpc_head.cpp',
         'raw_message_driver.cpp',
         'router.cpp',

@@ -98,21 +98,6 @@ public:
     RPC_CLIENT* NewRpcClientByName(const std::string& service_name,
         ProcessorType processor_type = kPEBBLE_RPC_BINARY, Router** router = NULL);
 
-    /// @brief 返回内置协程调度器对象
-    /// @return 非NULL 成功
-    /// @return NULL 失败
-    CoroutineSchedule* GetCoroutineSchedule() {
-        return m_coroutine_schedule;
-    }
-
-    /// @brief 创建一个协程，并决定是否立即执行
-    /// @param routine 协程执行入口函数
-    /// @param start_immediately 默认立即执行，设置为false时等下一次update时执行
-    /// @return 0 成功
-    /// @return <0 失败
-    int32_t MakeCoroutine(const cxx::function<void()>& routine, bool start_immediately = true);
-
-
     /// @brief 返回Pebble的配置参数，用户可按需修改
     /// @return Pebble的配置参数对象
     /// @note 参数修改在init和reload时生效
@@ -148,6 +133,20 @@ public:
     SessionMgr* GetSessionMgr();
 
     Stat* GetStat();
+
+    /// @brief 返回内置协程调度器对象
+    /// @return 非NULL 成功
+    /// @return NULL 失败
+    CoroutineSchedule* GetCoroutineSchedule() {
+        return m_coroutine_schedule;
+    }
+
+    /// @brief 创建一个协程，并决定是否立即执行
+    /// @param routine 协程执行入口函数
+    /// @param start_immediately 默认立即执行，设置为false时等下一次update时执行
+    /// @return 0 成功
+    /// @return <0 失败
+    int32_t MakeCoroutine(const cxx::function<void()>& routine, bool start_immediately = true);
 
 private:
     int32_t ProcessMessage();

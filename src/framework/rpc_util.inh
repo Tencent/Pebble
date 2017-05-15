@@ -34,7 +34,7 @@ typedef enum {
 /// @brief RPC实现通用工具部分，如提供基于协程的同步调用
 class RpcUtil {
 public:
-    RpcUtil(Rpc* rpc, CoroutineSchedule* coroutine_schedule);
+    RpcUtil(IRpc* rpc, CoroutineSchedule* coroutine_schedule);
     ~RpcUtil();
 
     /// @brief 同步发送，在协程中执行
@@ -110,7 +110,7 @@ private:
         OnRpcResponse   _on_rsp;
     };
 
-    Rpc* m_rpc;
+    IRpc* m_rpc;
     CoroutineSchedule* m_coroutine_schedule;
     AsyncResult m_result;
 };

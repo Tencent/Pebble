@@ -26,7 +26,7 @@ public:
 };
 static RpcUtilErrorStringRegister s_rpc_util_error_string_register;
 
-RpcUtil::RpcUtil(Rpc* rpc, CoroutineSchedule* coroutine_schedule) {
+RpcUtil::RpcUtil(IRpc* rpc, CoroutineSchedule* coroutine_schedule) {
     m_rpc = rpc;
     m_coroutine_schedule = coroutine_schedule;
 }

@@ -22,10 +22,10 @@
 #include "common/log.h"
 
 
-// À©Õ¹²å¼ş°²×° : ¶ÔÓÚPebbleµÄÀ©Õ¹²¿·Ö£¬Îª±ÜÃâÏÔÊ½ÒÀÀµ£¬ĞèÒªÔÚÊ¹ÓÃÊ±ÏÔÊ½°²×°£¬²»Ê¹ÓÃÊ±²»ÓÃ°²×°
+// æ‰©å±•æ’ä»¶å®‰è£… : å¯¹äºPebbleçš„æ‰©å±•éƒ¨åˆ†ï¼Œä¸ºé¿å…æ˜¾å¼ä¾èµ–ï¼Œéœ€è¦åœ¨ä½¿ç”¨æ—¶æ˜¾å¼å®‰è£…ï¼Œä¸ä½¿ç”¨æ—¶ä¸ç”¨å®‰è£…
 
-/// @brief °²×°Tbuspp
-/// @param pebble_server PebbleServerÊµÀı
+/// @brief å®‰è£…Tbuspp
+/// @param pebble_server PebbleServerå®ä¾‹
 #define INSTALL_TBUSPP(ret) \
     do { \
         (ret) = pebble::TbusppMessage::Instance()->Init(); \
@@ -53,8 +53,9 @@
         } \
     } while (0)
 
-// @brief °²×°zookeeperÃû×Ö·şÎñ(Ê¹ÓÃ¹ã²¥¹¦ÄÜÊ±ĞèÒª)
-/// @param pebble_server PebbleServerÊµÀı
+
+/// @brief å®‰è£…zookeeperåå­—æœåŠ¡(ä½¿ç”¨å¹¿æ’­åŠŸèƒ½æ—¶éœ€è¦)
+/// @param pebble_server PebbleServerå®ä¾‹
 #define INSTALL_ZOOKEEPER_NAMING(ret) \
     do { \
         pebble::NamingFactory* naming_factory = new pebble::ZookeeperNamingFactory(); \

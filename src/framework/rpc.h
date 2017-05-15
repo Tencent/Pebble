@@ -15,8 +15,6 @@
 #ifndef _PEBBLE_COMMON_RPC_H_
 #define _PEBBLE_COMMON_RPC_H_
 
-#include "common/error.h"
-#include "common/platform.h"
 #include "framework/processor.h"
 
 
@@ -72,12 +70,22 @@ struct RpcHead {
         m_version       = kVERSION_0;
         m_message_type  = kRPC_EXCEPTION;
         m_session_id    = 0;
+        m_dst           = NULL;
+    }
+    RpcHead(const RpcHead& rhs) {
+        m_version       = rhs.m_version;
+        m_message_type  = rhs.m_message_type;
+        m_session_id    = rhs.m_session_id;
+        m_function_name = rhs.m_function_name;
+        m_dst           = rhs.m_dst;
     }
 
     int32_t     m_version;
     int32_t     m_message_type;
     uint64_t    m_session_id;
     std::string m_function_name;
+
+    IProcessor* m_dst; // 非消息相关，标示消息来源模块，响应原路返回
 };
 
 /// @brief RPC异常结构定义
@@ -106,39 +114,20 @@ typedef cxx::function<int32_t(const uint8_t* buff, uint32_t buff_len, // NOLINT
 /// @param buff_len 响应消息长度
 typedef cxx::function<int32_t(int32_t ret, const uint8_t* buff, uint32_t buff_len)> OnRpcResponse;
 
-class Rpc : public IProcessor {
+class IRpc : public IProcessor {
 public:
-    Rpc();
-    virtual ~Rpc();
+    IRpc();
+    virtual ~IRpc();
 
     /// @brief 实现Processor接口，RPC管理事件驱动
     /// @return 处理的事件数，0表示无事件
     virtual int32_t Update();
 
-    /// @brief 实现Processor接口，设置send函数
-    /// @param send, sendv @see IProcessor::SetSendFunction
-    /// @return 0 成功
-    /// @return 非0 失败 @see RpcErrorCode
-    virtual int32_t SetSendFunction(const SendFunction& send, const SendVFunction& sendv);
-
-    /// @brief 实现Processor接口，设置广播函数 @see IProcessor::SetBroadcastFunction
-    virtual int32_t SetBroadcastFunction(const BroadcastFunction& broadcast,
-        const BroadcastVFunction& broadcastv);
-
-    /// @brief 实现Processor接口，设置EventHandler实例
-    /// @return 0 成功
-    /// @return 非0 失败 @see RpcErrorCode
-    virtual int32_t SetEventHandler(IEventHandler* event_handler) {
-        m_rpc_event_handler = event_handler;
-        return 0;
-    }
-
     /// @brief 实现Processor接口，消息处理入口
-    /// @param handle, buff, buff_len @see IProcessor::OnMessage
     /// @return 0 成功
     /// @return 非0 失败 @see RpcErrorCode
-    virtual int32_t OnMessage(int64_t handle, const uint8_t* buff,
-        uint32_t buff_len, uint32_t is_overload);
+    virtual int32_t OnMessage(int64_t handle, const uint8_t* msg,
+        uint32_t msg_len, const MsgExternInfo* msg_info, uint32_t is_overload);
 
     /// @brief 实现Processor接口，返回并发的任务数
     virtual uint32_t GetUnFinishedTaskNum() {
@@ -193,12 +182,6 @@ public:
                     const RpcHead& rpc_head,
                     const uint8_t* buff,
                     uint32_t buff_len);
-
-    /// @brief 返回最后错误字符串描述
-    /// @return 最后一次错误的信息
-    const char* GetLastError() const {
-        return m_last_error;
-    }
 
 public:
     // TODO: 改成可配置
@@ -257,7 +240,7 @@ private:
     int32_t SendResponse(uint64_t session_id, int32_t ret, const uint8_t* buff, uint32_t buff_len);
 
     // 发送RPC消息，把RPC头和数据部分组装发送
-    int32_t Send(int64_t handle, const RpcHead& rpc_head, const uint8_t* buff, uint32_t buff_len);
+    int32_t SendMessage(int64_t handle, const RpcHead& rpc_head, const uint8_t* buff, uint32_t buff_len);
 
     // 超时处理，暂时支持请求的超时，可扩展支持服务处理超时
     int32_t OnTimeout(uint64_t session_id);
@@ -277,11 +260,6 @@ private:
         int32_t result, int32_t time_cost_ms);
 
 private:
-    IEventHandler* m_rpc_event_handler;
-    SendFunction   m_send;
-    SendVFunction  m_sendv;
-    BroadcastFunction  m_broadcast;
-    BroadcastVFunction m_broadcastv;
     cxx::unordered_map<std::string, OnRpcRequest> m_service_map;
 
     uint8_t m_rpc_head_buff[1024];
@@ -292,9 +270,6 @@ private:
     cxx::unordered_map< uint64_t, cxx::shared_ptr<RpcSession> > m_session_map;
     int64_t  m_task_num; // 并发任务数，只包括服务处理
     int64_t  m_latest_handle;
-
-protected:
-    char m_last_error[256];
 };
 
 } // namespace pebble
