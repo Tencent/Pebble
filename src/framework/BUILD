@@ -75,6 +75,9 @@ cc_library(
     ],
     incs = [
     ],
+    extra_cppflags = [
+        '--std=c++0x',
+    ],
     deps = [
         ':gen_broadcast',
         ':gen_exception',

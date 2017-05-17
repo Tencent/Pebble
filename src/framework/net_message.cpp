@@ -570,14 +570,12 @@ NetConnection* NetMessage::CreateConnection(uint64_t netaddr) {
 
     connection->_max_send_list_size = m_max_send_list_size;
 
-    std::pair<cxx::unordered_map<uint64_t, NetConnection*>::iterator, bool> insert =
-        m_connections.insert(std::pair<uint64_t, NetConnection*>(netaddr, connection));
-    if (insert.second == false) {
+    if (m_connections.insert({netaddr, connection}).second == false) {
         _LOG_LAST_ERROR("connection insert %lu failed", netaddr);
         return NULL;
     }
 
-    return insert.first->second;
+    return connection;
 }
 
 NetConnection* NetMessage::GetConnection(uint64_t netaddr) {

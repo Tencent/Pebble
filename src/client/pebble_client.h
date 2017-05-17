@@ -60,6 +60,7 @@ typedef enum {
     kPEBBLE_RPC_BINARY = 0, // thrift binary编码的pebble rpc实例
     kPEBBLE_RPC_JSON,       // thrift json编码的pebble rpc实例
     kPEBBLE_RPC_PROTOBUF,   // protobuf编码的pebble rpc实例
+    kPEBBLE_PIPE,           // pipe协议的processor实例
     kPROCESSOR_TYPE_BUTT
 } ProcessorType;
 

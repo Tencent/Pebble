@@ -423,9 +423,7 @@ int32_t PebbleServer::Attach(int64_t handle, IProcessor* processor) {
         return -1;
     }
 
-    std::pair<cxx::unordered_map<int64_t, IProcessor*>::iterator, bool> ret =
-        m_processor_map.insert(std::pair<int64_t, IProcessor*>(handle, processor));
-    if (!ret.second) {
+    if (m_processor_map.insert({handle, processor}).second == false) {
         PLOG_ERROR("handle %ld is already attach to Processor %p", handle, processor);
         return -1;
     }
@@ -443,12 +441,53 @@ int32_t PebbleServer::Attach(Router* router, IProcessor* processor) {
     return 0;
 }
 
-
 IProcessor* PebbleServer::GetProcessor(ProcessorType processor_type) {
-    if (processor_type < kPEBBLE_RPC_BINARY || processor_type > kPEBBLE_RPC_PROTOBUF) {
-        return GetPebbleRpc(processor_type);
+    switch (processor_type) {
+        case kPEBBLE_RPC_BINARY:
+        case kPEBBLE_RPC_JSON:
+        case kPEBBLE_RPC_PROTOBUF:
+            return GetPebbleRpc(processor_type);
+
+        case kPEBBLE_PIPE:
+            PLOG_ERROR("pipe processor must spesify nest processor, please call "
+                "GetProcessor(ProcessorType processor_type, ProcessorType nest_processor_type)");
+            break;
+
+        default:
+            PLOG_ERROR("unsupport processor type %d", processor_type);
+            break;
     }
-    // 目前只有RPC相关的Processor，若有扩展，需要这里处理
+    return NULL;
+}
+
+IProcessor* PebbleServer::GetProcessor(ProcessorType processor_type,
+    ProcessorType nest_processor_type) {
+    cxx::shared_ptr<ProcessorFactory> factory;
+    switch (processor_type) {
+        case kPEBBLE_RPC_BINARY:
+        case kPEBBLE_RPC_JSON:
+        case kPEBBLE_RPC_PROTOBUF:
+            PLOG_ERROR("processor type %d unsupport nest, please call "
+                "GetProcessor(ProcessorType processor_type)", processor_type);
+            break;
+
+        case kPEBBLE_PIPE:
+            if (m_processor_array[processor_type] != NULL) {
+                return m_processor_array[processor_type];
+            }
+            factory = GetProcessorFactory(kPEBBLE_PIPE);
+            if (!factory) {
+                PLOG_ERROR("pipe processor factory not installed.");
+                return NULL;
+            }
+            m_processor_array[processor_type] =
+                factory->GetProcessor(GetTimer(), GetProcessor(nest_processor_type));
+            return m_processor_array[processor_type];
+
+        default:
+            PLOG_ERROR("unsupport processor type %d", processor_type);
+            break;
+    }
     return NULL;
 }
 
@@ -499,8 +538,8 @@ Naming* PebbleServer::GetNaming(NamingType naming_type) {
         return m_naming_array[naming_type];
     }
 
-    NamingFactory* factory = GetNamingFactory(naming_type);
-    if (factory == NULL) {
+    cxx::shared_ptr<NamingFactory> factory = GetNamingFactory(naming_type);
+    if (!factory) {
         PLOG_ERROR("unsupport naming_type %d", naming_type);
         return NULL;
     }
@@ -522,8 +561,8 @@ Router* PebbleServer::GetRouter(const std::string& name, RouterType router_type)
         return it->second;
     }
 
-    RouterFactory* factory = GetRouterFactory(router_type);
-    if (factory == NULL) {
+    cxx::shared_ptr<RouterFactory> factory = GetRouterFactory(router_type);
+    if (!factory) {
         PLOG_ERROR("unsupport router_type %d", router_type);
         return NULL;
     }

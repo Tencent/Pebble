@@ -103,6 +103,7 @@ typedef enum {
     kPEBBLE_RPC_BINARY = 0, // thrift binary编码的pebble rpc实例
     kPEBBLE_RPC_JSON,       // thrift json编码的pebble rpc实例
     kPEBBLE_RPC_PROTOBUF,   // protobuf编码的pebble rpc实例
+    kPEBBLE_PIPE,           // pipe协议的processor实例
     kPROCESSOR_TYPE_BUTT
 } ProcessorType;
 
@@ -172,6 +173,13 @@ public:
     /// @return 非NULL 成功
     /// @return NULL 失败
     IProcessor* GetProcessor(ProcessorType processor_type);
+
+    /// @brief pebble支持processor嵌套，返回包含嵌套Processor的实例，如PipeProcessor(嵌套PebbleRpc Binary)
+    /// @param processor_type @see ProcesserType
+    /// @param nest_processor_type @see ProcesserType 嵌套的processor类型
+    /// @return 非NULL 成功
+    /// @return NULL 失败
+    IProcessor* GetProcessor(ProcessorType processor_type, ProcessorType nest_processor_type);
 
     /// @brief 指定传输接入的业务处理程序
     /// @param handle 传输通道句柄

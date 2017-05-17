@@ -11,7 +11,6 @@
  *
  */
 
-
 #include "framework/router.h"
 
 namespace pebble {
@@ -131,7 +130,7 @@ void Router::SetOnAddressChanged(const OnAddressChanged& on_address_changed)
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 // 避免全局变量构造、析构顺序问题
-static cxx::unordered_map<int32_t, RouterFactory*> * g_router_factory_map = NULL;
+static cxx::unordered_map<int32_t, cxx::shared_ptr<RouterFactory> > * g_router_factory_map = NULL;
 struct RouterFactoryMapHolder {
     RouterFactoryMapHolder() {
         g_router_factory_map = &_router_factory_map;
@@ -139,33 +138,33 @@ struct RouterFactoryMapHolder {
     ~RouterFactoryMapHolder() {
         g_router_factory_map = NULL;
     }
-    cxx::unordered_map<int32_t, RouterFactory*> _router_factory_map;
+    cxx::unordered_map<int32_t, cxx::shared_ptr<RouterFactory> > _router_factory_map;
 };
 
-RouterFactory* GetRouterFactory(int32_t type) {
+cxx::shared_ptr<RouterFactory> GetRouterFactory(int32_t type) {
+    cxx::shared_ptr<RouterFactory> null_factory;
     if (!g_router_factory_map) {
-        return NULL;
+        return null_factory;
     }
 
-    cxx::unordered_map<int32_t, RouterFactory*>::iterator it = g_router_factory_map->find(type);
+    cxx::unordered_map<int32_t, cxx::shared_ptr<RouterFactory> >::iterator it =
+        g_router_factory_map->find(type);
     if (it != g_router_factory_map->end()) {
         return it->second;
     }
 
-    return NULL;
+    return null_factory;
 }
 
-int32_t SetRouterFactory(int32_t type, RouterFactory* factory) {
+int32_t SetRouterFactory(int32_t type, const cxx::shared_ptr<RouterFactory>& factory) {
     static RouterFactoryMapHolder fouter_factory_map_holder;
-    if (factory == NULL) {
+    if (!factory) {
         return kROUTER_INVAILD_PARAM;
     }
     if (g_router_factory_map == NULL) {
         return kROUTER_FACTORY_MAP_NULL;
     }
-    std::pair<cxx::unordered_map<int32_t, RouterFactory*>::iterator, bool> ret =
-        g_router_factory_map->insert(std::pair<int32_t, RouterFactory*>(type, factory));
-    if (false == ret.second) {
+    if (false == g_router_factory_map->insert({type, factory}).second) {
         return kROUTER_FACTORY_EXISTED;
     }
     return 0;

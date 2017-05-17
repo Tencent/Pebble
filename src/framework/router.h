@@ -128,12 +128,12 @@ public:
 /// @param type 路由器的类型
 /// @param factory 路由器的工厂实例
 /// @return 0成功，非0失败
-int32_t SetRouterFactory(int32_t type, RouterFactory* factory);
+int32_t SetRouterFactory(int32_t type, const cxx::shared_ptr<RouterFactory>& factory);
 
 /// @brief 获取指定类型的路由器工厂
 /// @param type 路由器的类型
 /// @return 路由器的工厂实例，为NULL时说明未set这种类型的工厂
-RouterFactory* GetRouterFactory(int32_t type);
+cxx::shared_ptr<RouterFactory> GetRouterFactory(int32_t type);
 
 
 } // namespace pebble

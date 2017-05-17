@@ -15,6 +15,7 @@
 #ifndef PEBBLE_EXTENSION_EXTENSION_H
 #define PEBBLE_EXTENSION_EXTENSION_H
 
+//#include "extension/pipe/pipe_processor.h"
 //#include "extension/tbuspp/tbuspp_message.h"
 //#include "extension/tbuspp/tbuspp_naming.h"
 //#include "extension/tbuspp/tbuspp_router.h"
@@ -25,7 +26,6 @@
 // 扩展插件安装 : 对于Pebble的扩展部分，为避免显式依赖，需要在使用时显式安装，不使用时不用安装
 
 /// @brief 安装Tbuspp
-/// @param pebble_server PebbleServer实例
 #define INSTALL_TBUSPP(ret) \
     do { \
         (ret) = pebble::TbusppMessage::Instance()->Init(); \
@@ -35,35 +35,40 @@
             break; \
         } \
         pebble::Message::SetMessageDriver(pebble::TbusppMessage::Instance()); \
-        pebble::NamingFactory* naming_factory = new pebble::TbusppNamingFactory(); \
-        PLOG_IF_ERROR(naming_factory == NULL, "invalid TbusppNamingFactory"); \
+        cxx::shared_ptr<pebble::NamingFactory> naming_factory(new pebble::TbusppNamingFactory()); \
         ret = pebble::SetNamingFactory(pebble::kNAMING_TBUSPP, naming_factory); \
         if ((ret) != 0) { \
             PLOG_ERROR("SetNamingFactory failed, ret_code: %d", ret); \
-            delete naming_factory; \
             break; \
         } \
-        pebble::RouterFactory* router_factory = new pebble::TbusppRouterFactory(); \
-        PLOG_IF_ERROR(router_factory == NULL, "invalid TbusppRouterFactory"); \
+        cxx::shared_ptr<pebble::RouterFactory> router_factory(new pebble::TbusppRouterFactory()); \
         (ret) = pebble::SetRouterFactory(pebble::kROUTER_TBUSPP, router_factory); \
         if ((ret) != 0) { \
             PLOG_ERROR("SetRouterFactory failed, ret_code: %d", ret); \
-            delete router_factory; \
             break; \
         } \
     } while (0)
 
 
 /// @brief 安装zookeeper名字服务(使用广播功能时需要)
-/// @param pebble_server PebbleServer实例
 #define INSTALL_ZOOKEEPER_NAMING(ret) \
     do { \
-        pebble::NamingFactory* naming_factory = new pebble::ZookeeperNamingFactory(); \
-        PLOG_IF_ERROR(naming_factory == NULL, "invalid ZookeeperNamingFactory"); \
+        cxx::shared_ptr<pebble::NamingFactory> naming_factory(new pebble::ZookeeperNamingFactory()); \
         (ret) = pebble::SetNamingFactory(pebble::kNAMING_ZOOKEEPER, naming_factory); \
         if ((ret) != 0) { \
             PLOG_ERROR("SetNamingFactory failed, ret_code: %d", ret); \
-            delete naming_factory; \
+            break; \
+        } \
+    } while (0)
+
+
+/// @brief 安装Pipe消息处理器(对接gconnd需要)
+#define INSTALL_PIPE_PROCESSOR(ret) \
+    do { \
+        cxx::shared_ptr<pebble::ProcessorFactory> processor_factory(new pebble::PipeProcessorFactory()); \
+        (ret) = pebble::SetProcessorFactory(pebble::kPEBBLE_PIPE, processor_factory); \
+        if ((ret) != 0) { \
+            PLOG_ERROR("SetProcessorFactory failed, ret_code: %d", ret); \
             break; \
         } \
     } while (0)

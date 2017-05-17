@@ -145,12 +145,12 @@ public:
 /// @param type 名字服务的类型
 /// @param factory 名字服务的工厂实例
 /// @return 0成功，非0失败
-int32_t SetNamingFactory(int32_t type, NamingFactory* factory);
+int32_t SetNamingFactory(int32_t type, const cxx::shared_ptr<NamingFactory>& factory);
 
 /// @brief 获取指定类型的名字服务工厂
 /// @param type 名字服务的类型
 /// @return 名字服务的工厂实例，为NULL时说明未set这种类型的工厂
-NamingFactory* GetNamingFactory(int32_t type);
+cxx::shared_ptr<NamingFactory> GetNamingFactory(int32_t type);
 
 
 } // namespace pebble

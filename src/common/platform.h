@@ -22,19 +22,19 @@
 #endif
 
 #include <stdint.h>
+#include "common/cxx11.h"
 
-#if __cplusplus < 201103L
-#include <tr1/functional>
-#include <tr1/memory>
-#include <tr1/unordered_map>
-#include <tr1/tuple>
-#else
+#ifdef CXX11_ENABLED
 #include <functional>
 #include <memory>
 #include <unordered_map>
 #include <tuple>
+#else
+#include <tr1/functional>
+#include <tr1/memory>
+#include <tr1/unordered_map>
+#include <tr1/tuple>
 #endif
-
 
 #ifndef  INT8_MAX
 #define  INT8_MAX   0x7f
@@ -76,35 +76,16 @@
 namespace pebble {
 namespace stdcxx {
 
-#if __cplusplus < 201103L
-
-using ::std::tr1::function;
-using ::std::tr1::bind;
-using ::std::tr1::shared_ptr;
-using ::std::tr1::weak_ptr;
-using ::std::tr1::dynamic_pointer_cast;
-
-namespace placeholders {
-    using ::std::tr1::placeholders::_1;
-    using ::std::tr1::placeholders::_2;
-    using ::std::tr1::placeholders::_3;
-    using ::std::tr1::placeholders::_4;
-    using ::std::tr1::placeholders::_5;
-    using ::std::tr1::placeholders::_6;
-    using ::std::tr1::placeholders::_7;
-} // namespace placeholders
-
-using ::std::tr1::unordered_map;
-using ::std::tr1::ref;
-using ::std::tr1::tuple;
-using ::std::tr1::make_tuple;
-
-#else // c++ 11
+#ifdef CXX11_ENABLED
 
 using ::std::function;
 using ::std::bind;
 using ::std::shared_ptr;
 using ::std::weak_ptr;
+using ::std::enable_shared_from_this;
+using ::std::bad_weak_ptr;
+using ::std::static_pointer_cast;
+using ::std::const_pointer_cast;
 using ::std::dynamic_pointer_cast;
 
 namespace placeholders {
@@ -122,11 +103,38 @@ using ::std::ref;
 using ::std::tuple;
 using ::std::make_tuple;
 
+#else
+
+using ::std::tr1::function;
+using ::std::tr1::bind;
+using ::std::tr1::shared_ptr;
+using ::std::tr1::weak_ptr;
+using ::std::tr1::enable_shared_from_this;
+using ::std::tr1::bad_weak_ptr;
+using ::std::tr1::static_pointer_cast;
+using ::std::tr1::const_pointer_cast;
+using ::std::tr1::dynamic_pointer_cast;
+
+namespace placeholders {
+    using ::std::tr1::placeholders::_1;
+    using ::std::tr1::placeholders::_2;
+    using ::std::tr1::placeholders::_3;
+    using ::std::tr1::placeholders::_4;
+    using ::std::tr1::placeholders::_5;
+    using ::std::tr1::placeholders::_6;
+    using ::std::tr1::placeholders::_7;
+} // namespace placeholders
+
+using ::std::tr1::unordered_map;
+using ::std::tr1::ref;
+using ::std::tr1::tuple;
+using ::std::tr1::make_tuple;
+
 #endif
+
 } // namespace stdcxx
 } // namespace pebble
 
 namespace cxx = pebble::stdcxx;
-
 
 #endif // _PEBBLE_COMMON_PLATFORM_H_

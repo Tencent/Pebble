@@ -27,6 +27,8 @@ typedef enum {
     kPROCESSOR_ERROR_BASE              = PROCESSOR_ERROR_CODE_BASE,
     kPROCESSOR_INVALID_PARAM           = kPROCESSOR_ERROR_BASE - 1,   // 参数错误
     kPROCESSOR_EMPTY_SEND              = kPROCESSOR_ERROR_BASE - 2,   // send函数未设置
+    kPROCESSOR_FACTORY_MAP_NULL        = kPROCESSOR_ERROR_BASE - 3,   // Processor工厂map为空
+    kPROCESSOR_FACTORY_EXISTED         = kPROCESSOR_ERROR_BASE - 4,   // Processor工厂已存在
 } ProcessorErrorCode;
 
 
@@ -146,6 +148,28 @@ protected:
     BroadcastVFunction m_broadcastv;
     char m_last_error[256];
 };
+
+class Timer;
+
+class ProcessorFactory {
+public:
+    ProcessorFactory() {}
+    virtual ~ProcessorFactory() {}
+    virtual IProcessor* GetProcessor() = 0;
+    virtual IProcessor* GetProcessor(Timer* timer, IProcessor* inproc_processor) = 0;
+};
+
+/// @brief 设置指定类型的Processor工厂
+/// @param type Processor的类型
+/// @param factory Processor的工厂实例
+/// @return 0成功，非0失败
+int32_t SetProcessorFactory(int32_t type, const cxx::shared_ptr<ProcessorFactory>& factory);
+
+/// @brief 获取指定类型的Processor工厂
+/// @param type Processor的类型
+/// @return Processor的工厂实例，为NULL时说明未set这种类型的工厂
+cxx::shared_ptr<ProcessorFactory> GetProcessorFactory(int32_t type);
+
 
 } // namespace pebble
 

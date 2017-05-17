@@ -17,13 +17,12 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include "common/uncopyable.h"
 
 namespace pebble {
 
 class TrueRandom {
-private:
-    TrueRandom(const TrueRandom&);
-    const TrueRandom& operator=(const TrueRandom&);
+    DECLARE_UNCOPYABLE(TrueRandom);
 
 public:
     TrueRandom();

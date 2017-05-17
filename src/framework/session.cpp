@@ -47,7 +47,7 @@ int32_t SessionMgr::AddSession(int64_t session_id, Session* session, uint32_t ti
     }
 
     std::pair<cxx::unordered_map<int64_t, SessionInfo>::iterator, bool> ret =
-        m_sessions.insert(std::pair<int64_t, SessionInfo>(session_id, SessionInfo()));
+        m_sessions.insert({session_id, SessionInfo()});
     if (false == ret.second) {
         _LOG_LAST_ERROR("the session %ld is existed", session_id);
         return kSESSION_ALREADY_EXISTED;

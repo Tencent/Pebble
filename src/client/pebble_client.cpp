@@ -193,8 +193,8 @@ Naming* PebbleClient::GetNaming(NamingType naming_type) {
         return m_naming_array[naming_type];
     }
 
-    NamingFactory* factory = GetNamingFactory(naming_type);
-    if (factory == NULL) {
+    cxx::shared_ptr<NamingFactory> factory = GetNamingFactory(naming_type);
+    if (!factory) {
         PLOG_ERROR("unsupport naming_type %d", naming_type);
         return NULL;
     }
@@ -216,8 +216,8 @@ Router* PebbleClient::GetRouter(const std::string& name, RouterType router_type)
         return it->second;
     }
 
-    RouterFactory* factory = GetRouterFactory(router_type);
-    if (factory == NULL) {
+    cxx::shared_ptr<RouterFactory> factory = GetRouterFactory(router_type);
+    if (!factory) {
         PLOG_ERROR("unsupport router_type %d", router_type);
         return NULL;
     }

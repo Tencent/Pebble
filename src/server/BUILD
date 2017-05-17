@@ -26,6 +26,9 @@ cc_library(
     ],
     incs = [
     ],
+    extra_cppflags = [
+        '--std=c++0x',
+    ],
     deps = [
         ':gen_control',
         '//src/framework/:pebble_framework',

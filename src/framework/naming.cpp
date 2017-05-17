@@ -95,7 +95,7 @@ int32_t Naming::FormatNameStr(std::string* name)
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 // 避免全局变量构造、析构顺序问题
-static cxx::unordered_map<int32_t, NamingFactory*> * g_naming_factory_map = NULL;
+static cxx::unordered_map<int32_t, cxx::shared_ptr<NamingFactory> > * g_naming_factory_map = NULL;
 struct NamingFactoryMapHolder {
     NamingFactoryMapHolder() {
         g_naming_factory_map = &_naming_factory_map;
@@ -103,33 +103,33 @@ struct NamingFactoryMapHolder {
     ~NamingFactoryMapHolder() {
         g_naming_factory_map = NULL;
     }
-    cxx::unordered_map<int32_t, NamingFactory*> _naming_factory_map;
+    cxx::unordered_map<int32_t, cxx::shared_ptr<NamingFactory> > _naming_factory_map;
 };
 
-NamingFactory* GetNamingFactory(int32_t type) {
+cxx::shared_ptr<NamingFactory> GetNamingFactory(int32_t type) {
+    cxx::shared_ptr<NamingFactory> null_factory;
     if (!g_naming_factory_map) {
-        return NULL;
+        return null_factory;
     }
 
-    cxx::unordered_map<int32_t, NamingFactory*>::iterator it = g_naming_factory_map->find(type);
+    cxx::unordered_map<int32_t, cxx::shared_ptr<NamingFactory> >::iterator it =
+        g_naming_factory_map->find(type);
     if (it != g_naming_factory_map->end()) {
         return it->second;
     }
 
-    return NULL;
+    return null_factory;
 }
 
-int32_t SetNamingFactory(int32_t type, NamingFactory* factory) {
+int32_t SetNamingFactory(int32_t type, const cxx::shared_ptr<NamingFactory>& factory) {
     static NamingFactoryMapHolder naming_factory_map_holder;
-    if (factory == NULL) {
+    if (!factory) {
         return kNAMING_INVAILD_PARAM;
     }
     if (g_naming_factory_map == NULL) {
         return kNAMING_FACTORY_MAP_NULL;
     }
-    std::pair<cxx::unordered_map<int32_t, NamingFactory*>::iterator, bool> ret =
-        g_naming_factory_map->insert(std::pair<int32_t, NamingFactory*>(type, factory));
-    if (false == ret.second) {
+    if (false == g_naming_factory_map->insert({type, factory}).second) {
         return kNAMING_FACTORY_EXISTED;
     }
     return 0;

@@ -21,6 +21,8 @@ public:
     ProcessorErrorStringRegister() {
         SetErrorString(kPROCESSOR_INVALID_PARAM, "invalid paramater");
         SetErrorString(kPROCESSOR_EMPTY_SEND, "not set send or sendv function");
+        SetErrorString(kPROCESSOR_FACTORY_MAP_NULL, "processor factory map is null");
+        SetErrorString(kPROCESSOR_FACTORY_EXISTED, "processor factory is existed");
     }
 };
 static ProcessorErrorStringRegister s_processor_error_string_register;
@@ -81,6 +83,47 @@ const char* IProcessor::GetLastError() const {
     return m_last_error;
 }
 
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+// 避免全局变量构造、析构顺序问题
+static cxx::unordered_map<int32_t, cxx::shared_ptr<ProcessorFactory> > * g_processor_factory_map = NULL;
+struct ProcessorFactoryMapHolder {
+    ProcessorFactoryMapHolder() {
+        g_processor_factory_map = &_processor_factory_map;
+    }
+    ~ProcessorFactoryMapHolder() {
+        g_processor_factory_map = NULL;
+    }
+    cxx::unordered_map<int32_t, cxx::shared_ptr<ProcessorFactory> > _processor_factory_map;
+};
+
+cxx::shared_ptr<ProcessorFactory> GetProcessorFactory(int32_t type) {
+    cxx::shared_ptr<ProcessorFactory> null_factory;
+    if (!g_processor_factory_map) {
+        return null_factory;
+    }
+
+    cxx::unordered_map<int32_t, cxx::shared_ptr<ProcessorFactory> >::iterator it =
+        g_processor_factory_map->find(type);
+    if (it != g_processor_factory_map->end()) {
+        return it->second;
+    }
+
+    return null_factory;
+}
+
+int32_t SetProcessorFactory(int32_t type, const cxx::shared_ptr<ProcessorFactory>& factory) {
+    static ProcessorFactoryMapHolder processor_factory_map_holder;
+    if (!factory) {
+        return kPROCESSOR_INVALID_PARAM;
+    }
+    if (g_processor_factory_map == NULL) {
+        return kPROCESSOR_FACTORY_MAP_NULL;
+    }
+    if (false == g_processor_factory_map->insert({type, factory}).second) {
+        return kPROCESSOR_FACTORY_EXISTED;
+    }
+    return 0;
+}
 
 } // namespace pebble
 

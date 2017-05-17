@@ -251,12 +251,7 @@ int32_t PebbleRpc::AddService(cxx::shared_ptr<IPebbleRpcService> service) {
         return kRPC_INVALID_PARAM;
     }
 
-    std::pair<
-        cxx::unordered_map<std::string, cxx::shared_ptr<IPebbleRpcService> >::iterator,
-        bool
-    > ret = m_services.insert(
-        std::pair<std::string, cxx::shared_ptr<IPebbleRpcService> >(service_name, service));
-    if (!ret.second) {
+    if (m_services.insert({service_name, service}).second == false) {
         _LOG_LAST_ERROR("service %s is already existed", service_name.c_str());
         return kPEBBLE_RPC_SERVICE_ALREADY_EXISTED;
     }

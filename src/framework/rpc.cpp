@@ -150,9 +150,7 @@ int32_t IRpc::AddOnRequestFunction(const std::string& name, const OnRpcRequest& 
         return kRPC_INVALID_PARAM;
     }
 
-    std::pair<cxx::unordered_map<std::string, OnRpcRequest>::iterator, bool> ret =
-        m_service_map.insert(std::pair<std::string, OnRpcRequest>(name, on_request));
-    if (false == ret.second) {
+    if (false == m_service_map.insert({name, on_request}).second) {
         _LOG_LAST_ERROR("the %s is existed", name.c_str());
         return kRPC_FUNCTION_NAME_EXISTED;
     }
