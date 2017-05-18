@@ -20,6 +20,13 @@
 
 #include "common/platform.h"
 
+/**
+ * 错误输出原则:
+ *  1) common库，功能聚焦api明确，返回错误码，记录错误信息供用户获取，不输出日志
+ *  2) framework，关键流程错误必须输出到日志，注意避免重复输出
+ *  3) 对于暴露给用户的接口，返回错误应该是最根本错误原因，避免返回中间错误信息
+ */
+
 /// @brief 格式化输出log信息到buff
 #define LOG_MESSAGE(buff, buff_len, fmt, ...) \
     snprintf((buff), (buff_len), "(%s:%d)(%s)"fmt, \
@@ -35,7 +42,6 @@ namespace pebble {
 /// @brief 每个模块错误码BASE定义，模块错误码取值为XXX_BASE - N
 enum ERROR_CODE_BASE {
     NO_ERROR                    = 0,
-    PROCESSOR_ERROR_CODE_BASE   = -500,
     RPC_ERROR_CODE_BASE         = -1000,
     SESSION_ERROR_CODE_BASE     = -2000,
     MESSAGE_ERROR_CODE_BASE     = -3000,
@@ -45,7 +51,7 @@ enum ERROR_CODE_BASE {
     PIPE_ERROR_CODE_BASE        = -7000,
     COROUTINE_ERROR_CODE_BASE   = -8000,
     CHANNEL_ERROR_CODE_BASE     = -9000,
-    ZOOKEEPER_ERROR_CODE_BASE   = -10000,
+    PROCESSOR_ERROR_CODE_BASE   = -10000,
     USER_ERROR_CODE_BASE        = -100000,
 };
 

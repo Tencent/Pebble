@@ -64,6 +64,7 @@ cc_library(
         'processor.cpp',
         'protobuf_rpc_head.cpp',
         'raw_message_driver.cpp',
+        'register_error.cpp',
         'router.cpp',
         'rpc.cpp',
         'rpc_plugin.cpp',
@@ -84,5 +85,5 @@ cc_library(
         ':gen_protobuf_rpc_head',
         '//src/common/:pebble_common',
         '//src/framework/dr:pebble_dr',
-    ]
+    ],
 )

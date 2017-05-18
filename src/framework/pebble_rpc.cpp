@@ -11,6 +11,7 @@
  *
  */
 
+#include "common/log.h"
 #include "framework/pebble_rpc.h"
 #include "framework/rpc_plugin.inh"
 #include "framework/rpc_util.inh"
@@ -22,24 +23,6 @@
 
 
 namespace pebble {
-
-class PebbleRpcErrorStringRegister {
-public:
-    PebbleRpcErrorStringRegister() {
-        SetErrorString(kPEBBLE_RPC_UNKNOWN_CODEC_TYPE, "unknown codec type");
-        SetErrorString(kPEBBLE_RPC_MISS_RESULT, "miss result");
-        SetErrorString(kPEBBLE_RPC_ENCODE_HEAD_FAILED, "encode head failed");
-        SetErrorString(kPEBBLE_RPC_DECODE_HEAD_FAILED, "decode head failed");
-        SetErrorString(kPEBBLE_RPC_ENCODE_BODY_FAILED, "encode body failed");
-        SetErrorString(kPEBBLE_RPC_DECODE_BODY_FAILED, "decode body failed");
-        SetErrorString(kPEBBLE_RPC_MSG_TYPE_ERROR, "msg type error");
-        SetErrorString(kPEBBLE_RPC_MSG_LENGTH_ERROR, "msg length error");
-        SetErrorString(kPEBBLE_RPC_SERVICE_ALREADY_EXISTED, "service already exist");
-        SetErrorString(kPEBBLE_RPC_SERVICE_ADD_FAILED, "add service failed");
-        SetErrorString(kPEBBLE_RPC_INSUFFICIENT_MEMORY, "infufficient memory");
-    }
-};
-static PebbleRpcErrorStringRegister s_pebble_rpc_error_string_register;
 
 PebbleRpc::PebbleRpc(CodeType code_type, CoroutineSchedule* coroutine_schedule) {
     m_rpc_util = new RpcUtil(this, coroutine_schedule);
@@ -77,7 +60,7 @@ PebbleRpc::~PebbleRpc() {
 
 dr::protocol::TProtocol* PebbleRpc::GetCodec(MemoryPolicy mem_policy) {
     if (mem_policy < kBORROW || mem_policy >= kPOLICY_BUTT) {
-        _LOG_LAST_ERROR("mem policy(%d) invalid", mem_policy);
+        PLOG_ERROR("mem policy(%d) invalid", mem_policy);
         return NULL;
     }
 
@@ -99,7 +82,7 @@ dr::protocol::TProtocol* PebbleRpc::GetCodec(MemoryPolicy mem_policy) {
             trans.reset(new dr::transport::TMemoryBuffer());
         }
     } catch (TException e) {
-        _LOG_LAST_ERROR("catch transport exception : %s", e.what());
+        PLOG_ERROR("catch transport exception : %s", e.what());
         return NULL;
     }
 
@@ -114,7 +97,7 @@ dr::protocol::TProtocol* PebbleRpc::GetCodec(MemoryPolicy mem_policy) {
             break;
 
         default:
-            _LOG_LAST_ERROR("unsupport code type : %d", m_code_type);
+            PLOG_ERROR("unsupport code type : %d", m_code_type);
             return NULL;
     }
 
@@ -128,12 +111,14 @@ uint8_t* PebbleRpc::GetBuffer(int32_t size) {
         return m_buff;
     }
     if (size > max_buff_size) {
+        PLOG_ERROR("the size %d > max buff size %d", size, max_buff_size);
         return NULL;
     }
     // 2 * size or max_buff_size
     int32_t need_realloc = std::min(size + size - m_buff_size, max_buff_size - m_buff_size);
     uint8_t* new_buff = (uint8_t*)realloc(m_buff, need_realloc);
     if (new_buff == NULL) {
+        PLOG_ERROR("realloc failed, buff size %d, realloc size %d", m_buff_size, need_realloc);
         return NULL;
     }
     m_buff = new_buff;
@@ -204,7 +189,7 @@ int32_t PebbleRpc::ExceptionEncode(const RpcException& rpc_exception,
         len += encoder->writeMessageEnd();
         encoder->getTransport()->writeEnd();
     } catch (TException e) {
-        _LOG_LAST_ERROR("catch exception : %s", e.what());
+        PLOG_ERROR("catch exception : %s", e.what());
         return kPEBBLE_RPC_ENCODE_BODY_FAILED;
     }
 
@@ -232,7 +217,7 @@ int32_t PebbleRpc::ExceptionDecode(const uint8_t* buff, uint32_t buff_len,
         rpc_exception->m_error_code   = ex.type;
         rpc_exception->m_message      = ex.message;
     } catch (TException e) {
-        _LOG_LAST_ERROR("catch exception : %s", e.what());
+        PLOG_ERROR("catch exception : %s", e.what());
         return kPEBBLE_RPC_DECODE_BODY_FAILED;
     }
 
@@ -247,18 +232,18 @@ int32_t PebbleRpc::ProcessRequest(int64_t handle, const RpcHead& rpc_head,
 int32_t PebbleRpc::AddService(cxx::shared_ptr<IPebbleRpcService> service) {
     std::string service_name(service->Name());
     if (service_name.empty()) {
-        _LOG_LAST_ERROR("service name is empty");
+        PLOG_ERROR("service name is empty");
         return kRPC_INVALID_PARAM;
     }
 
     if (m_services.insert({service_name, service}).second == false) {
-        _LOG_LAST_ERROR("service %s is already existed", service_name.c_str());
+        PLOG_ERROR("service %s is already existed", service_name.c_str());
         return kPEBBLE_RPC_SERVICE_ALREADY_EXISTED;
     }
 
     int32_t result = service->RegisterServiceFunction();
     if (result != kRPC_SUCCESS) {
-        _LOG_LAST_ERROR("service %s RegisterServiceFunction failed(%d)", service_name.c_str(), result);
+        PLOG_ERROR("service %s RegisterServiceFunction failed(%d)", service_name.c_str(), result);
         return kPEBBLE_RPC_SERVICE_ADD_FAILED;
     }
 

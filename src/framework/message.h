@@ -44,6 +44,33 @@ typedef enum {
     kMESSAGE_UNKNOWN_CONNECTION     =   MESSAGE_ERROR_CODE_BASE - 19,   ///< 未知的连接
 }MessageErrorCode;
 
+class MessageErrorStringRegister {
+public:
+    static void RegisterErrorString() {
+        SetErrorString(kMESSAGE_UNINSTALL_DRIVER, "no message dirver installed");
+        SetErrorString(kMESSAGE_INVAILD_PARAM, "invalid paramater");
+        SetErrorString(kMESSAGE_ADDRESS_NOT_EXIST, "address not exist");
+        SetErrorString(kMESSAGE_BIND_ADDR_FAILED, "bind failed");
+        SetErrorString(kMESSAGE_CONNECT_ADDR_FAILED, "connect failed");
+        SetErrorString(kMESSAGE_ON_DISCONNECTED, "connection disconnected");
+        SetErrorString(kMESSAGE_RECV_INVAILD_MSG, "receive invalid message");
+        SetErrorString(kMESSAGE_RECV_BUFF_NOT_ENOUGH, "receive buffer not enough");
+        SetErrorString(kMESSAGE_RECV_EMPTY, "receive empty message");
+        SetErrorString(kMESSAGE_EPOLL_INIT_FAILED, "epoll init failed");
+        SetErrorString(kMESSAGE_NETIO_INIT_FAILED, "netio init failed");
+        SetErrorString(kMESSAGE_SEND_FAILED, "send failed");
+        SetErrorString(kMESSAGE_RECV_FAILED, "receive failed");
+        SetErrorString(kMESSAGE_UNSUPPORT, "unsupport interface");
+        SetErrorString(kMESSAGE_GET_EVENT_FAILED, "get net event failed");
+        SetErrorString(kMESSAGE_GET_ERR_EVENT, "geted ERR event");
+        SetErrorString(kMESSAGE_CACHE_FAILED, "cache message failed");
+        SetErrorString(kMESSAGE_SEND_BUFF_NOT_ENOUGH, "send buffer not enough");
+        SetErrorString(kMESSAGE_RECV_INVALID_DATA, "receive invalid message");
+        SetErrorString(kMESSAGE_UNKNOWN_CONNECTION, "unknown connection");
+    }
+};
+
+
 /// @brief 消息相关信息，message收到消息后除了递交消息本身到业务模块外，还需提供消息附属信息
 ///     这个附属信息在上层各业务模块间流动，业务模块按需使用这些信息
 struct MsgExternInfo {

@@ -8,5 +8,5 @@ cc_library(
     ],
     deps = [
         '//src/framework/:pebble_framework',
-    ]
+    ],
 )

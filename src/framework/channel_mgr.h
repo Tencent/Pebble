@@ -29,6 +29,16 @@ typedef enum {
     kCHANNEL_NOT_SUBSCIRBED          = kCHANNEL_ERROR_BASE - 3, // 没有订阅
 } ChannelErrorCode;
 
+class ChannelErrorStringRegister {
+public:
+    static void RegisterErrorString() {
+        SetErrorString(kCHANNEL_INVALID_PARAM, "invalid paramater");
+        SetErrorString(kCHANNEL_NOT_EXIST, "channel not exist");
+        SetErrorString(kCHANNEL_NOT_SUBSCIRBED, "un subscribed");
+    }
+};
+
+
 /// @brief 订阅者只是一个网络连接(handle)
 typedef int64_t Subscriber;
 typedef cxx::unordered_map<Subscriber, int64_t> SubscriberList; // 暂使用map做订阅者列表

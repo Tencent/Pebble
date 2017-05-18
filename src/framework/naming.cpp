@@ -18,19 +18,6 @@
 
 namespace pebble {
 
-class NamingErrorStringRegister {
-public:
-    NamingErrorStringRegister() {
-        SetErrorString(kNAMING_INVAILD_PARAM, "invalid paramater");
-        SetErrorString(kNAMING_URL_REGISTERED, "url already registered");
-        SetErrorString(kNAMING_URL_NOT_BINDED, "url not binded");
-        SetErrorString(kNAMING_REGISTER_FAILED, "register failed");
-        SetErrorString(kNAMING_FACTORY_MAP_NULL, "naming factory map is null");
-        SetErrorString(kNAMING_FACTORY_EXISTED, "naming factory is existed");
-    }
-};
-static NamingErrorStringRegister s_naming_error_string_register;
-
 int32_t Naming::MakeName(int64_t app_id,
                          const std::string& service_dir,
                          const std::string& service,

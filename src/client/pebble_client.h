@@ -27,7 +27,7 @@
 //////////////////////////////////////////////////////////////////////////////////////
 namespace pebble {
 
-// Ç°ÖÃÉùÃ÷
+// å‰ç½®å£°æ˜
 class CoroutineSchedule;
 class IEventHandler;
 class IProcessor;
@@ -42,25 +42,31 @@ class Timer;
 
 //////////////////////////////////////////////////////////////////////////////////////
 
-/// @brief Ãû×Ö·şÎñÀàĞÍ¶¨Òå
+/// @brief è·å–pebbleç‰ˆæœ¬å·
+const char* GetVersion();
+
+
+//////////////////////////////////////////////////////////////////////////////////////
+
+/// @brief åå­—æœåŠ¡ç±»å‹å®šä¹‰
 typedef enum {
     kNAMING_TBUSPP = 0,
     kNAMING_ZOOKEEPER = 1,
     kNAMING_BUTT
 } NamingType;
 
-/// @brief Â·ÓÉÆ÷ÀàĞÍ¶¨Òå
+/// @brief è·¯ç”±å™¨ç±»å‹å®šä¹‰
 typedef enum {
     kROUTER_TBUSPP = 0,
     kROUTER_BUTT
 } RouterType;
 
-/// @brief ProcessorÀàĞÍ¶¨Òå
+/// @brief Processorç±»å‹å®šä¹‰
 typedef enum {
-    kPEBBLE_RPC_BINARY = 0, // thrift binary±àÂëµÄpebble rpcÊµÀı
-    kPEBBLE_RPC_JSON,       // thrift json±àÂëµÄpebble rpcÊµÀı
-    kPEBBLE_RPC_PROTOBUF,   // protobuf±àÂëµÄpebble rpcÊµÀı
-    kPEBBLE_PIPE,           // pipeĞ­ÒéµÄprocessorÊµÀı
+    kPEBBLE_RPC_BINARY = 0, // thrift binaryç¼–ç çš„pebble rpcå®ä¾‹
+    kPEBBLE_RPC_JSON,       // thrift jsonç¼–ç çš„pebble rpcå®ä¾‹
+    kPEBBLE_RPC_PROTOBUF,   // protobufç¼–ç çš„pebble rpcå®ä¾‹
+    kPEBBLE_PIPE,           // pipeåè®®çš„processorå®ä¾‹
     kPROCESSOR_TYPE_BUTT
 } ProcessorType;
 
@@ -68,49 +74,46 @@ typedef enum {
 //////////////////////////////////////////////////////////////////////////////////////
 
 
-/// @brief PebbleAppµÄÒ»¸öÊµÏÖ£¬±¾ÉíÎªÒ»¸öÍ¨ÓÃµÄPebble server³ÌĞò£¬¾ÛºÏÁËPebbleµÄ¸÷¹¦ÄÜÄ£¿é
+/// @brief PebbleAppçš„ä¸€ä¸ªå®ç°ï¼Œæœ¬èº«ä¸ºä¸€ä¸ªé€šç”¨çš„Pebble serverç¨‹åºï¼Œèšåˆäº†Pebbleçš„å„åŠŸèƒ½æ¨¡å—
 class PebbleClient {
 public:
     PebbleClient();
     ~PebbleClient();
 
 public:
-    /// @brief ³õÊ¼»¯½Ó¿Ú£¬ÈôĞèÒªÌØÊâÅäÖÃ£¬ÇëÏÈÉèÖÃOptions @see GetOptions
-    /// @return 0 ³É¹¦
-    /// @return <0 Ê§°Ü
+    /// @brief åˆå§‹åŒ–æ¥å£ï¼Œè‹¥éœ€è¦ç‰¹æ®Šé…ç½®ï¼Œè¯·å…ˆè®¾ç½®Options @see GetOptions
+    /// @return 0 æˆåŠŸ
+    /// @return <0 å¤±è´¥
     int32_t Init();
 
     int32_t Update();
 
-    /// @brief ´´½¨Ò»¸öÖ¸¶¨ÀàĞÍµÄRPC stubÊµÀı£¬Ö»´´½¨²»»ØÊÕ£¬¶ÔÏóĞèÒªÓÃ»§ÊÍ·Å
-    /// @param service_address ·şÎñµÄµØÖ·£¬Èç"udp://127.0.0.1:8880" @see Connect(url)
-    /// @param processor_type Ê¹ÓÃµÄRPCÀàĞÍ
-    /// @return RPC_CLIENT¶ÔÏó£¬ÎªNULLÊ±´´½¨Ê§°Ü£¬ĞÂ´´½¨µÄ¶ÔÏóĞèÒªÓÃ»§ÊÍ·Å
+    /// @brief åˆ›å»ºä¸€ä¸ªæŒ‡å®šç±»å‹çš„RPC stubå®ä¾‹ï¼Œåªåˆ›å»ºä¸å›æ”¶ï¼Œå¯¹è±¡éœ€è¦ç”¨æˆ·é‡Šæ”¾
+    /// @param service_address æœåŠ¡çš„åœ°å€ï¼Œå¦‚"udp://127.0.0.1:8880" @see Connect(url)
+    /// @param processor_type ä½¿ç”¨çš„RPCç±»å‹
+    /// @return RPC_CLIENTå¯¹è±¡ï¼Œä¸ºNULLæ—¶åˆ›å»ºå¤±è´¥ï¼Œæ–°åˆ›å»ºçš„å¯¹è±¡éœ€è¦ç”¨æˆ·é‡Šæ”¾
     template<class RPC_CLIENT>
     RPC_CLIENT* NewRpcClientByAddress(const std::string& service_address,
         ProcessorType processor_type = kPEBBLE_RPC_BINARY);
 
-    /// @brief ´´½¨Ò»¸öÖ¸¶¨ÀàĞÍµÄRPC stubÊµÀı£¬Ö»´´½¨²»»ØÊÕ£¬¶ÔÏóĞèÒªÓÃ»§ÊÍ·Å
-    /// @param service_name ·şÎñµÄÃû×Ö£¬Ä¬ÈÏ¸ù¾İÃû×ÖÑ°Ö·
-    /// @param processor_type Ê¹ÓÃµÄRPCÀàĞÍ
-    /// @param router Â·ÓÉÆ÷£¬Ê¹ÓÃÃû×ÖÑ°Ö·Ê±Ä¬ÈÏ²ÉÓÃÂÖÑ¯²ßÂÔ£¬ÓÃ»§¿É»ñÈ¡routerÊµÀıÀ´ĞŞ¸ÄÂ·ÓÉ²ßÂÔ
-    /// @return RPC_CLIENT¶ÔÏó£¬ÎªNULLÊ±´´½¨Ê§°Ü£¬ĞÂ´´½¨µÄ¶ÔÏóĞèÒªÓÃ»§ÊÍ·Å
+    /// @brief åˆ›å»ºä¸€ä¸ªæŒ‡å®šç±»å‹çš„RPC stubå®ä¾‹ï¼Œåªåˆ›å»ºä¸å›æ”¶ï¼Œå¯¹è±¡éœ€è¦ç”¨æˆ·é‡Šæ”¾
+    /// @param service_name æœåŠ¡çš„åå­—ï¼Œé»˜è®¤æ ¹æ®åå­—å¯»å€
+    /// @param processor_type ä½¿ç”¨çš„RPCç±»å‹
+    /// @param router è·¯ç”±å™¨ï¼Œä½¿ç”¨åå­—å¯»å€æ—¶é»˜è®¤é‡‡ç”¨è½®è¯¢ç­–ç•¥ï¼Œç”¨æˆ·å¯è·å–routerå®ä¾‹æ¥ä¿®æ”¹è·¯ç”±ç­–ç•¥
+    /// @return RPC_CLIENTå¯¹è±¡ï¼Œä¸ºNULLæ—¶åˆ›å»ºå¤±è´¥ï¼Œæ–°åˆ›å»ºçš„å¯¹è±¡éœ€è¦ç”¨æˆ·é‡Šæ”¾
     template<class RPC_CLIENT>
     RPC_CLIENT* NewRpcClientByName(const std::string& service_name,
         ProcessorType processor_type = kPEBBLE_RPC_BINARY, Router** router = NULL);
 
-    /// @brief ·µ»ØPebbleµÄÅäÖÃ²ÎÊı£¬ÓÃ»§¿É°´ĞèĞŞ¸Ä
-    /// @return PebbleµÄÅäÖÃ²ÎÊı¶ÔÏó
-    /// @note ²ÎÊıĞŞ¸ÄÔÚinitºÍreloadÊ±ÉúĞ§
+    /// @brief è¿”å›Pebbleçš„é…ç½®å‚æ•°ï¼Œç”¨æˆ·å¯æŒ‰éœ€ä¿®æ”¹
+    /// @return Pebbleçš„é…ç½®å‚æ•°å¯¹è±¡
+    /// @note å‚æ•°ä¿®æ”¹åœ¨initå’Œreloadæ—¶ç”Ÿæ•ˆ
     Options* GetOptions() {
         return &m_options;
     }
 
-    /// @brief »ñÈ¡Pebble°æ±¾ĞÅÏ¢
-    static const char* GetVersion();
-
 public:
-    // ÒÔÏÂÎª·Ç³£ÓÃ½Ó¿Ú
+    // ä»¥ä¸‹ä¸ºéå¸¸ç”¨æ¥å£
     int64_t Connect(const std::string &url);
 
     int32_t Close(int64_t handle);
@@ -135,18 +138,18 @@ public:
 
     Stat* GetStat();
 
-    /// @brief ·µ»ØÄÚÖÃĞ­³Ìµ÷¶ÈÆ÷¶ÔÏó
-    /// @return ·ÇNULL ³É¹¦
-    /// @return NULL Ê§°Ü
+    /// @brief è¿”å›å†…ç½®åç¨‹è°ƒåº¦å™¨å¯¹è±¡
+    /// @return éNULL æˆåŠŸ
+    /// @return NULL å¤±è´¥
     CoroutineSchedule* GetCoroutineSchedule() {
         return m_coroutine_schedule;
     }
 
-    /// @brief ´´½¨Ò»¸öĞ­³Ì£¬²¢¾ö¶¨ÊÇ·ñÁ¢¼´Ö´ĞĞ
-    /// @param routine Ğ­³ÌÖ´ĞĞÈë¿Úº¯Êı
-    /// @param start_immediately Ä¬ÈÏÁ¢¼´Ö´ĞĞ£¬ÉèÖÃÎªfalseÊ±µÈÏÂÒ»´ÎupdateÊ±Ö´ĞĞ
-    /// @return 0 ³É¹¦
-    /// @return <0 Ê§°Ü
+    /// @brief åˆ›å»ºä¸€ä¸ªåç¨‹ï¼Œå¹¶å†³å®šæ˜¯å¦ç«‹å³æ‰§è¡Œ
+    /// @param routine åç¨‹æ‰§è¡Œå…¥å£å‡½æ•°
+    /// @param start_immediately é»˜è®¤ç«‹å³æ‰§è¡Œï¼Œè®¾ç½®ä¸ºfalseæ—¶ç­‰ä¸‹ä¸€æ¬¡updateæ—¶æ‰§è¡Œ
+    /// @return 0 æˆåŠŸ
+    /// @return <0 å¤±è´¥
     int32_t MakeCoroutine(const cxx::function<void()>& routine, bool start_immediately = true);
 
 private:
@@ -176,11 +179,10 @@ private:
     IEventHandler*     m_rpc_event_handler;
     StatManager*       m_stat_manager;
     Timer*             m_timer;
-    uint32_t           m_stat_timer_ms; // ×ÊÔ´Ê¹ÓÃ²ÉÑù¶¨Ê±Æ÷£¬¹©Í³¼ÆÓÃ
+    uint32_t           m_stat_timer_ms; // èµ„æºä½¿ç”¨é‡‡æ ·å®šæ—¶å™¨ï¼Œä¾›ç»Ÿè®¡ç”¨
     SessionMgr*        m_session_mgr;
     cxx::unordered_map<int64_t, IProcessor*> m_processor_map;
     cxx::unordered_map<std::string, Router*> m_router_map;
-    static std::string m_version;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////

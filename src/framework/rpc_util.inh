@@ -30,6 +30,15 @@ typedef enum {
     kRPC_UTIL_INVALID_NUM_PARALLEL_IN_COROUTINE = kRPC_UTIL_ERROR_BASE - 4, // 无效的并行调用次数
 } CoroutineRpcErrorCode;
 
+class RpcUtilErrorStringRegister {
+public:
+    static void RegisterErrorString() {
+        SetErrorString(kRPC_UTIL_CO_SCHEDULE_IS_NULL, "co schedule is null");
+        SetErrorString(kRPC_UTIL_NOT_IN_COROUTINE, "not in coroutine");
+        SetErrorString(kRPC_UTIL_ALREADY_IN_COROUTINE, "already in coroutine");
+    }
+};
+
 
 /// @brief RPC实现通用工具部分，如提供基于协程的同步调用
 class RpcUtil {

@@ -45,6 +45,28 @@ typedef enum {
     kRPC_SUCCESS                 = 0,
 } RpcErrorCode;
 
+class RpcErrorStringRegister {
+public:
+    static void RegisterErrorString() {
+        SetErrorString(kRPC_INVALID_PARAM, "invalid paramater");
+        SetErrorString(kRPC_ENCODE_FAILED, "encode failed");
+        SetErrorString(kRPC_DECODE_FAILED, "decode failed");
+        SetErrorString(kRPC_RECV_EXCEPTION_MSG, "receive a exception message");
+        SetErrorString(kRPC_UNKNOWN_TYPE, "unknown message type received");
+        SetErrorString(kRPC_UNSUPPORT_FUNCTION_NAME, "unsupport function name");
+        SetErrorString(kRPC_SESSION_NOT_FOUND, "session is expired");
+        SetErrorString(kRPC_SEND_FAILED, "send failed");
+        SetErrorString(kRPC_REQUEST_TIMEOUT, "request timeout");
+        SetErrorString(kRPC_FUNCTION_NAME_EXISTED, "service name is already registered");
+        SetErrorString(kRPC_SYSTEM_ERROR, "system error");
+        SetErrorString(kRPC_PROCESS_TIMEOUT, "process service timeout");
+        SetErrorString(kPRC_BROADCAST_FAILED, "broadcast request failed");
+        SetErrorString(kRPC_FUNCTION_NAME_UNEXISTED, "service name unexisted");
+        SetErrorString(kRPC_MESSAGE_EXPIRED, "system overload: message expired");
+        SetErrorString(kRPC_TASK_OVERLOAD, "system overload: task overload");
+    }
+};
+
 
 /// @brief RPC消息类型定义
 typedef enum {
@@ -253,10 +275,13 @@ private:
     int32_t ResponseException(int64_t handle, int32_t ret, const RpcHead& rpc_head,
         const uint8_t* buff = NULL, uint32_t buff_len = 0);
 
-    void OnRequestProcComplete(const std::string& name,
+    void ReportTransportQuality(int64_t handle, int32_t ret_code,
+        int64_t time_cost_ms);
+
+    void RequestProcComplete(const std::string& name,
         int32_t result, int32_t time_cost_ms);
 
-    void OnResponseProcComplete(const std::string& name,
+    void ResponseProcComplete(const std::string& name,
         int32_t result, int32_t time_cost_ms);
 
 private:

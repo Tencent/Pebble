@@ -9,7 +9,7 @@
 #define SRC_COMMON_UNCOPYABLE_H
 #pragma once
 
-namespace pebble {
+namespace common {
 
 namespace UncopyableDetails {
 
@@ -32,6 +32,6 @@ private: \
     Class(const Class&); \
     const Class& operator=(const Class&);
 
-} // namespace pebble
+} // namespace common
 
 #endif // SRC_COMMON_UNCOPYABLE_H

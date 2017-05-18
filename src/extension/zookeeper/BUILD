@@ -13,5 +13,4 @@ cc_library(
         '//src/common/:pebble_common',
         '//thirdparty/zookeeper:zookeeper_st',
     ],
-    link_all_symbols = True
 )

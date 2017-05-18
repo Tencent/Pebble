@@ -51,7 +51,7 @@ void CmdLineHandler::SetVersion(const char* version) {
         ver.append(version);
     }
     ver.append("\n");
-    ver.append(pebble::PebbleServer::GetVersion());
+    ver.append(GetVersion());
     google::SetVersionString(ver.c_str());
     m_set_version = true;
 }
@@ -59,7 +59,7 @@ void CmdLineHandler::SetVersion(const char* version) {
 int CmdLineHandler::Process(int argc, char** argv) {
     // 用户未设置版本号，只显示pebble的版本号
     if (!m_set_version) {
-        google::SetVersionString(pebble::PebbleServer::GetVersion());
+        google::SetVersionString(GetVersion());
     }
 
     // 设置help

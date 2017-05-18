@@ -65,6 +65,7 @@
 /// @brief 安装Pipe消息处理器(对接gconnd需要)
 #define INSTALL_PIPE_PROCESSOR(ret) \
     do { \
+        pebble::PipeErrorStringRegister::RegisterErrorString(); \
         cxx::shared_ptr<pebble::ProcessorFactory> processor_factory(new pebble::PipeProcessorFactory()); \
         (ret) = pebble::SetProcessorFactory(pebble::kPEBBLE_PIPE, processor_factory); \
         if ((ret) != 0) { \

@@ -15,18 +15,6 @@
 
 namespace pebble {
 
-class RouterErrorStringRegister {
-public:
-    RouterErrorStringRegister() {
-        SetErrorString(kROUTER_INVAILD_PARAM, "invalid paramater");
-        SetErrorString(kROUTER_NONE_VALID_HANDLE, "none valid handle");
-        SetErrorString(kROUTER_FACTORY_MAP_NULL, "router factory map is null");
-        SetErrorString(kROUTER_FACTORY_EXISTED, "router factory is existed");
-    }
-};
-static RouterErrorStringRegister s_router_error_string_register;
-
-
 Router::Router(const std::string& name_path)
     :   m_route_name(name_path), m_route_type(kROUND_ROUTE),
         m_route_policy(NULL), m_naming(NULL)

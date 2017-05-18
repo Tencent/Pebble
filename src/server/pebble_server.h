@@ -51,6 +51,12 @@ class Timer;
 
 //////////////////////////////////////////////////////////////////////////////////////
 
+/// @brief 获取pebble版本号
+const char* GetVersion();
+
+
+//////////////////////////////////////////////////////////////////////////////////////
+
 /// @brief 程序事件处理基类
 class AppEventHandler {
 public:
@@ -317,9 +323,6 @@ public:
 
     void Idle();
 
-    /// @brief 获取Pebble版本信息
-    static const char* GetVersion();
-
 private:
     int32_t ProcessMessage();
 
@@ -379,7 +382,6 @@ private:
     cxx::unordered_map<std::string, Router*> m_router_map;
     std::string m_ini_file_name;
     uint32_t    m_is_overload;
-    static std::string m_version;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////

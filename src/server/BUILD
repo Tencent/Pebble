@@ -32,7 +32,7 @@ cc_library(
     deps = [
         ':gen_control',
         '//src/framework/:pebble_framework',
-    ]
+    ],
 )
 
 cc_binary(
@@ -49,7 +49,20 @@ cc_binary(
         '#readline',
         ':gen_control',
         '//src/client/:pebble_client',
+        '//src/extension/tbuspp:pebble_tbuspp',
         '//thirdparty/gflags:gflags',
+    ],
+)
+
+cc_binary(
+    name = 'pebble_error_parser',
+    srcs = [
+        'error_parser.cpp',
+    ],
+    incs = [
+    ],
+    deps = [
+        '//src/framework/:pebble_framework',
     ],
 )
 
@@ -64,6 +77,20 @@ gen_rule(
     ],
     outs = [
         'ctrl_cmd_tool',
+    ],
+)
+
+gen_rule(
+    name = 'cp_error_parser_2_tools',
+    srcs = [
+        'pebble_error_parser',
+    ],
+    cmd = 'cp $BUILD_DIR/src/server/pebble_error_parser $BUILD_DIR/../tools;strip -s $BUILD_DIR/../tools/pebble_error_parser',
+    deps = [
+        ':pebble_error_parser'
+    ],
+    outs = [
+        'error_parser_tool',
     ],
 )
 

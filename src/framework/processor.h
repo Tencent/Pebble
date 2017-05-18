@@ -31,6 +31,15 @@ typedef enum {
     kPROCESSOR_FACTORY_EXISTED         = kPROCESSOR_ERROR_BASE - 4,   // Processor工厂已存在
 } ProcessorErrorCode;
 
+class ProcessorErrorStringRegister {
+public:
+    static void RegisterErrorString() {
+        SetErrorString(kPROCESSOR_INVALID_PARAM, "invalid paramater");
+        SetErrorString(kPROCESSOR_EMPTY_SEND, "not set send or sendv function");
+        SetErrorString(kPROCESSOR_FACTORY_MAP_NULL, "processor factory map is null");
+        SetErrorString(kPROCESSOR_FACTORY_EXISTED, "processor factory is existed");
+    }
+};
 
 /// @brief send函数定义
 /// @param flag message接口可选参数，默认为0
@@ -59,12 +68,19 @@ class IEventHandler {
 public:
     virtual ~IEventHandler() {}
 
+    /// @brief 上报传输质量，依据请求结果和耗时来判断目的质量
+    /// @param handle 传输句柄
+    /// @param ret_code 请求处理结果
+    /// @param time_cost_ms 处理时间
+    virtual void ReportTransportQuality(int64_t handle, int32_t ret_code,
+        int64_t time_cost_ms) = 0;
+
     /// @brief 请求处理完成事件，在请求消息处理完成时被回调
     /// @param name 消息名称
     /// @param result 处理结果
     /// @param time_cost_ms 处理耗时，单位毫秒
     /// @note 多维度的数据由用户自己组装到name中，最终落地到文件，计算与展示由业务的数据分析系统完成
-    virtual void OnRequestProcComplete(const std::string& name,
+    virtual void RequestProcComplete(const std::string& name,
         int32_t result, int32_t time_cost_ms) = 0;
 
     /// @brief 响应处理完成事件，在响应消息处理完成时被回调
@@ -72,7 +88,7 @@ public:
     /// @param result 请求结果
     /// @param time_cost_ms 请求耗时，单位毫秒
     /// @note 多维度的数据由用户自己组装到name中，最终落地到文件，计算与展示由业务的数据分析系统完成
-    virtual void OnResponseProcComplete(const std::string& name,
+    virtual void ResponseProcComplete(const std::string& name,
         int32_t result, int32_t time_cost_ms) = 0;
 };
 
@@ -146,7 +162,6 @@ protected:
     SendVFunction  m_sendv;
     BroadcastFunction  m_broadcast;
     BroadcastVFunction m_broadcastv;
-    char m_last_error[256];
 };
 
 class Timer;

@@ -34,6 +34,24 @@ typedef enum {
     kPEBBLE_RPC_INSUFFICIENT_MEMORY     = kPEBBLE_RPC_ERROR_BASE - 11, // 内存不足
 } PebbleRpcErrorCode;
 
+class PebbleRpcErrorStringRegister {
+public:
+    static void RegisterErrorString() {
+        SetErrorString(kPEBBLE_RPC_UNKNOWN_CODEC_TYPE, "unknown codec type");
+        SetErrorString(kPEBBLE_RPC_MISS_RESULT, "miss result");
+        SetErrorString(kPEBBLE_RPC_ENCODE_HEAD_FAILED, "encode head failed");
+        SetErrorString(kPEBBLE_RPC_DECODE_HEAD_FAILED, "decode head failed");
+        SetErrorString(kPEBBLE_RPC_ENCODE_BODY_FAILED, "encode body failed");
+        SetErrorString(kPEBBLE_RPC_DECODE_BODY_FAILED, "decode body failed");
+        SetErrorString(kPEBBLE_RPC_MSG_TYPE_ERROR, "msg type error");
+        SetErrorString(kPEBBLE_RPC_MSG_LENGTH_ERROR, "msg length error");
+        SetErrorString(kPEBBLE_RPC_SERVICE_ALREADY_EXISTED, "service already exist");
+        SetErrorString(kPEBBLE_RPC_SERVICE_ADD_FAILED, "add service failed");
+        SetErrorString(kPEBBLE_RPC_INSUFFICIENT_MEMORY, "infufficient memory");
+    }
+};
+
+
 /// @brief Pebble RPC消息编码类型定义
 typedef enum {
     kCODE_BINARY  = 0,  // thrift binary protocol

@@ -32,6 +32,16 @@ typedef enum {
     kSYSTEM_ERROR           = kTIMER_ERROR_BASE - 4, // 系统错误
 } TimerErrorCode;
 
+class TimerErrorStringRegister {
+public:
+    static void RegisterErrorString() {
+        SetErrorString(kTIMER_INVALID_PARAM, "invalid paramater");
+        SetErrorString(kTIMER_NUM_OUT_OF_RANGE, "number of timer out of range");
+        SetErrorString(kTIMER_UNEXISTED, "timer unexist");
+        SetErrorString(kSYSTEM_ERROR, "system error");
+    }
+};
+
 
 /// @brief Timer超时回调函数返回码定义
 typedef enum {

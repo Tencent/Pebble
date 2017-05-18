@@ -19,7 +19,7 @@
 #include <stdlib.h>
 #include "common/uncopyable.h"
 
-namespace pebble {
+namespace common {
 
 class TrueRandom {
     DECLARE_UNCOPYABLE(TrueRandom);
@@ -38,6 +38,6 @@ private:
     int32_t m_fd;
 }; // class TrueRandom
 
-} // namespace pebble
+} // namespace common
 
 #endif // SRC_COMMON_RANDOM_H

@@ -11,20 +11,12 @@
  *
  */
 
-#include "framework/rpc_util.inh"
 #include "common/coroutine.h"
+#include "common/log.h"
+#include "framework/rpc_util.inh"
+
 
 namespace pebble {
-
-class RpcUtilErrorStringRegister {
-public:
-    RpcUtilErrorStringRegister() {
-        SetErrorString(kRPC_UTIL_CO_SCHEDULE_IS_NULL, "co schedule is null");
-        SetErrorString(kRPC_UTIL_NOT_IN_COROUTINE, "not in coroutine");
-        SetErrorString(kRPC_UTIL_ALREADY_IN_COROUTINE, "already in coroutine");
-    }
-};
-static RpcUtilErrorStringRegister s_rpc_util_error_string_register;
 
 RpcUtil::RpcUtil(IRpc* rpc, CoroutineSchedule* coroutine_schedule) {
     m_rpc = rpc;
@@ -43,10 +35,12 @@ int32_t RpcUtil::SendRequestSync(int64_t handle,
                     const OnRpcResponse& on_rsp,
                     int32_t timeout_ms) {
     if (!m_coroutine_schedule) {
+        PLOG_ERROR("coroutine schedule not set");
         return kRPC_UTIL_CO_SCHEDULE_IS_NULL;
     }
 
     if (m_coroutine_schedule->CurrentTaskId() == INVALID_CO_ID) {
+        PLOG_ERROR("not in coroutine");
         return kRPC_UTIL_NOT_IN_COROUTINE;
     }
 
@@ -87,6 +81,7 @@ void RpcUtil::SendRequestParallel(int64_t handle,
                                   uint32_t* num_called,
                                   uint32_t* num_parallel) {
     if (!m_coroutine_schedule) {
+        PLOG_ERROR("coroutine schedule not set");
         *ret_code = kRPC_UTIL_CO_SCHEDULE_IS_NULL;
         --(*num_called);
         --(*num_parallel);
@@ -94,6 +89,7 @@ void RpcUtil::SendRequestParallel(int64_t handle,
     }
 
     if (m_coroutine_schedule->CurrentTaskId() == INVALID_CO_ID) {
+        PLOG_ERROR("not in coroutine");
         *ret_code = kRPC_UTIL_NOT_IN_COROUTINE;
         --(*num_called);
         --(*num_parallel);

@@ -16,15 +16,6 @@
 
 namespace pebble {
 
-class ChannelErrorStringRegister {
-public:
-    ChannelErrorStringRegister() {
-        SetErrorString(kCHANNEL_INVALID_PARAM, "invalid paramater");
-        SetErrorString(kCHANNEL_NOT_EXIST, "channel not exist");
-        SetErrorString(kCHANNEL_NOT_SUBSCIRBED, "un subscribed");
-    }
-};
-static ChannelErrorStringRegister s_channel_error_string_register;
 
 // ChannelMgr本身逻辑简单，暂时不提供last error支持
 

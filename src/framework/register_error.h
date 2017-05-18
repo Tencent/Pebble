@@ -11,37 +11,18 @@
  *
  */
 
-#include <fcntl.h>
-#include <unistd.h>
-#include "common/random.h"
 
-namespace common {
+#ifndef _PEBBLE_FRAMEWORK_REGISTER_ERROR_H_
+#define _PEBBLE_FRAMEWORK_REGISTER_ERROR_H_
 
-TrueRandom::TrueRandom()
-    : m_fd(-1) {
-    m_fd = open("/dev/urandom", O_RDONLY, 0);
-    if (m_fd < 0) {
-        abort();
-    }
-}
 
-TrueRandom::~TrueRandom() {
-    close(m_fd);
-    m_fd = -1;
-}
+namespace pebble {
 
-bool TrueRandom::NextBytes(void* buffer, size_t size) {
-    return read(m_fd, buffer, size) == static_cast<int32_t>(size);
-}
+/// @brief 注册framework、common库的错误描述
+///      * 若单独使用common库，需要自己注册common库的错误描述
+///      * 对于扩展模块，在安装时注册
+void RegisterErrorString();
 
-uint32_t TrueRandom::NextUInt32() {
-    uint32_t random = -1;
-    NextBytes(&random, sizeof(random));
-    return random;
-}
+} // namespace pebble
 
-uint32_t TrueRandom::NextUInt32(uint32_t max_random) {
-    return NextUInt32() % max_random;
-}
-
-} // namespace common
+#endif // _PEBBLE_FRAMEWORK_REGISTER_ERROR_H_

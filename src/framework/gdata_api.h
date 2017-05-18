@@ -34,10 +34,6 @@ namespace pebble {
 namespace oss {
 
 typedef std::pair<std::string, std::string> data_pair;
-static const std::string MON_TYPE_INNER = "Inner";
-static const std::string MON_TYPE_RPC   = "RPC";
-static const std::string MON_TYPE_DB    = "DB";
-static const std::string MON_TYPE_Cache = "Cache";
 
 /*
  * 流水日志信息的结构体

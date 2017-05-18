@@ -105,7 +105,7 @@ int32_t StatManager::InitGdataApi(int64_t app_id, int32_t unit_id, int32_t progr
         delete m_gdata_monitor;
     }
     m_gdata_monitor = new oss::SMonitorData(m_gdata_id, m_gdata_log_id);
-    m_gdata_monitor->type = oss::MON_TYPE_RPC;
+    m_gdata_monitor->type.assign("RPC");
 
     return 0;
 }
@@ -134,7 +134,7 @@ void StatManager::WriteLog() {
     cxx::unordered_map<std::string, ResourceStatItem>::const_iterator it1 = resource_result->begin();
     for (; it1 != resource_result->end(); ++it1) {
         if (len > BUFF_WATER_LINE) {
-            PLOG_INFO("%s", buff);
+            PLOG_STAT(buff);
             len = 0;
         }
 
@@ -162,7 +162,7 @@ void StatManager::WriteLog() {
     cxx::unordered_map<int32_t, uint32_t>::const_iterator rit;
     for (; it2 != message_result->end(); ++it2) {
         if (len > BUFF_WATER_LINE) {
-            PLOG_INFO("\n%s", buff);
+            PLOG_STAT(buff);
             len = 0;
         }
 
@@ -180,7 +180,7 @@ void StatManager::WriteLog() {
     }
 
     if (len > 0) {
-        PLOG_INFO("\n%s\n", buff);
+        PLOG_STAT(buff);
     }
 }
 

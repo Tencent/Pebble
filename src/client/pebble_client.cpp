@@ -25,6 +25,7 @@
 #include "framework/event_handler.inh"
 #include "framework/message.h"
 #include "framework/pebble_rpc.h"
+#include "framework/register_error.h"
 #include "framework/session.h"
 #include "framework/stat.h"
 #include "framework/stat_manager.h"
@@ -35,7 +36,14 @@
 namespace pebble {
 
 
-std::string PebbleClient::m_version;
+const char* GetVersion() {
+    static char version[256] = {0};
+
+    snprintf(version, sizeof(version), "Pebble : %s %s %s",
+        PebbleVersion::GetVersion().c_str(), __TIME__, __DATE__);
+
+    return version;
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -58,7 +66,7 @@ PebbleClient::PebbleClient() {
 }
 
 PebbleClient::~PebbleClient() {
-    // deleteµÄÔ­Ôò: Èç¹û³öÏÖÖØ¸´deleteËµÃ÷Âß¼­ÊµÏÖÓĞÎÊÌâ£¬Í¨¹ıcrash±©Â¶³öÀ´£¬¸³NULL¿ÉÄÜÑÚ¸ÇÎÊÌâ
+    // deleteçš„åŸåˆ™: å¦‚æœå‡ºç°é‡å¤deleteè¯´æ˜é€»è¾‘å®ç°æœ‰é—®é¢˜ï¼Œé€šè¿‡crashæš´éœ²å‡ºæ¥ï¼Œèµ‹NULLå¯èƒ½æ©ç›–é—®é¢˜
     for (cxx::unordered_map<std::string, Router*>::iterator it = m_router_map.begin();
         it != m_router_map.end(); ++it) {
         delete it->second;
@@ -80,11 +88,13 @@ PebbleClient::~PebbleClient() {
 }
 
 int32_t PebbleClient::Init() {
-    // ¾ßÌåÄ£¿é³õÊ¼»¯Ê§°ÜµÄÏêÏ¸ĞÅÏ¢Ó¦¸ÃÔÚ¾ßÌåµÄinitÖĞÊä³ö£¬ÕâÀïÍ³Ò»·µ»Ø
+    // å…·ä½“æ¨¡å—åˆå§‹åŒ–å¤±è´¥çš„è¯¦ç»†ä¿¡æ¯åº”è¯¥åœ¨å…·ä½“çš„initä¸­è¾“å‡ºï¼Œè¿™é‡Œç»Ÿä¸€è¿”å›
     #define CHECK_RETURN(ret) \
         if (ret) { \
             return -1; \
         }
+
+    RegisterErrorString();
 
     InitLog();
 
@@ -97,6 +107,9 @@ int32_t PebbleClient::Init() {
     CHECK_RETURN(ret);
 
     ret = InitStat();
+    CHECK_RETURN(ret);
+
+    ret = Message::Init();
     CHECK_RETURN(ret);
 
     signal(SIGPIPE, SIG_IGN);
@@ -142,7 +155,7 @@ IProcessor* PebbleClient::GetProcessor(ProcessorType processor_type) {
     if (processor_type < kPEBBLE_RPC_BINARY || processor_type > kPEBBLE_RPC_PROTOBUF) {
         return GetPebbleRpc(processor_type);
     }
-    // Ä¿Ç°Ö»ÓĞRPCÏà¹ØµÄProcessor£¬ÈôÓĞÀ©Õ¹£¬ĞèÒªÕâÀï´¦Àí
+    // ç›®å‰åªæœ‰RPCç›¸å…³çš„Processorï¼Œè‹¥æœ‰æ‰©å±•ï¼Œéœ€è¦è¿™é‡Œå¤„ç†
     return NULL;
 }
 
@@ -223,7 +236,7 @@ Router* PebbleClient::GetRouter(const std::string& name, RouterType router_type)
     }
 
     Router* router = factory->GetRouter(name);
-    // ÕâÀïÄ¬ÈÏÊ¹ÓÃtbusppÃû×Ö·şÎñ£¬ÓÃ»§¿ÉÒÔÖØĞÂInitÉèÖÃÆäËûÃû×Ö·şÎñ
+    // è¿™é‡Œé»˜è®¤ä½¿ç”¨tbusppåå­—æœåŠ¡ï¼Œç”¨æˆ·å¯ä»¥é‡æ–°Initè®¾ç½®å…¶ä»–åå­—æœåŠ¡
     int32_t ret = router->Init(GetNaming());
     if (ret != 0) {
         PLOG_ERROR("router %s init failed(%d)", name.c_str(), ret);
@@ -272,15 +285,6 @@ int32_t PebbleClient::Update() {
     return num;
 }
 
-const char* PebbleClient::GetVersion() {
-    if (m_version.empty()) {
-        std::ostringstream oss;
-        oss << "Pebble : " << PebbleVersion::GetVersion() << " " << __TIME__ << " " << __DATE__;
-        m_version = oss.str();
-    }
-    return m_version.c_str();
-}
-
 int32_t PebbleClient::ProcessMessage() {
     int64_t handle = -1;
     int32_t event  = 0;
@@ -317,11 +321,11 @@ int32_t PebbleClient::ProcessMessage() {
 }
 
 void PebbleClient::InitLog() {
-    Log::SetOutputDevice(m_options._log_device);
-    Log::SetLogPriority(m_options._log_priority);
-    Log::SetMaxFileSize(m_options._log_file_size_MB);
-    Log::SetMaxRollNum(m_options._log_roll_num);
-    Log::SetFilePath(m_options._log_path);
+    Log::Instance().SetOutputDevice(m_options._log_device);
+    Log::Instance().SetLogPriority(m_options._log_priority);
+    Log::Instance().SetMaxFileSize(m_options._log_file_size_MB);
+    Log::Instance().SetMaxRollNum(m_options._log_roll_num);
+    Log::Instance().SetFilePath(m_options._log_path);
 
     // Log::EnableCrashRecord();
 }
@@ -401,10 +405,10 @@ void PebbleClient::StatProcessorResource(Stat* stat) {
             continue;
         }
 
-        // Í³¼ÆÈÎÎñÊı£¬Ä¿Ç°ÄÚÖÃProcessorÈÎÎñÊıÊµ¼ÊÎªĞ­³ÌÊı
+        // ç»Ÿè®¡ä»»åŠ¡æ•°ï¼Œç›®å‰å†…ç½®Processorä»»åŠ¡æ•°å®é™…ä¸ºåç¨‹æ•°
         task_num += m_processor_array[i]->GetUnFinishedTaskNum();
 
-        // Í³¼ÆProcessorÊ¹ÓÃ¶¯Ì¬×ÊÔ´Çé¿ö
+        // ç»Ÿè®¡Processorä½¿ç”¨åŠ¨æ€èµ„æºæƒ…å†µ
         resource.clear();
         m_processor_array[i]->GetResourceUsed(&resource);
         for (it = resource.begin(); it != resource.end(); ++it) {

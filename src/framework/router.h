@@ -28,6 +28,17 @@ typedef enum {
     kROUTER_FACTORY_EXISTED         =   ROUTER_ERROR_CODE_BASE - 4,     ///< 名字工厂已存在
 }RouterErrorCode;
 
+class RouterErrorStringRegister {
+public:
+    static void RegisterErrorString() {
+        SetErrorString(kROUTER_INVAILD_PARAM, "invalid paramater");
+        SetErrorString(kROUTER_NONE_VALID_HANDLE, "none valid handle");
+        SetErrorString(kROUTER_FACTORY_MAP_NULL, "router factory map is null");
+        SetErrorString(kROUTER_FACTORY_EXISTED, "router factory is existed");
+    }
+};
+
+
 typedef enum {
     kUSER_ROUTE,        ///< 用户自定义路由类型
     kQUALITY_ROUTE,     ///< 根据访问质量的路由类型

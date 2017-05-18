@@ -274,7 +274,7 @@ int32_t BroadcastMgr::SendV(const std::string& channel, uint32_t msg_frag_num,
         if (0 == ret) {
             ++num;
         }
-        m_event_handler->OnRequestProcComplete(channel, ret, 0);
+        m_event_handler->RequestProcComplete(channel, ret, 0);
     }
 
     if (relay) {
@@ -317,7 +317,7 @@ int32_t BroadcastMgr::RelayV(const std::string& channel, uint32_t msg_frag_num,
         if (0 == ret) {
             ++num;
         }
-        m_event_handler->OnRequestProcComplete(channel, ret, 0);
+        m_event_handler->RequestProcComplete(channel, ret, 0);
     }
 
     return num;

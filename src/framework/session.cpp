@@ -17,17 +17,6 @@
 
 namespace pebble {
 
-class SessionErrorStringRegister {
-public:
-    SessionErrorStringRegister() {
-        SetErrorString(kSESSION_INVALID_PARAM, "invalid paramater");
-        SetErrorString(kSESSION_ALREADY_EXISTED, "session already exist");
-        SetErrorString(kSESSION_UNEXISTED, "session unexist");
-        SetErrorString(kSESSION_START_TIMER_FAILED, "start timer failed");
-    }
-};
-static SessionErrorStringRegister s_session_error_string_register;
-
 SessionMgr::SessionMgr() {
     m_timer         = new SequenceTimer();
     m_last_error[0] = 0;

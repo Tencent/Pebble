@@ -42,6 +42,19 @@ typedef enum {
     kNAMING_FACTORY_EXISTED         =   NAMING_ERROR_CODE_BASE - 6,     ///< 名字工厂已存在
 }NamingErrorCode;
 
+class NamingErrorStringRegister {
+public:
+    static void RegisterErrorString() {
+        SetErrorString(kNAMING_INVAILD_PARAM, "invalid paramater");
+        SetErrorString(kNAMING_URL_REGISTERED, "url already registered");
+        SetErrorString(kNAMING_URL_NOT_BINDED, "url not binded");
+        SetErrorString(kNAMING_REGISTER_FAILED, "register failed");
+        SetErrorString(kNAMING_FACTORY_MAP_NULL, "naming factory map is null");
+        SetErrorString(kNAMING_FACTORY_EXISTED, "naming factory is existed");
+    }
+};
+
+
 class Naming
 {
 public:

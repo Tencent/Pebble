@@ -17,51 +17,17 @@
 
 namespace pebble {
 
-class MessageErrorStringRegister {
-public:
-    MessageErrorStringRegister() {
-        SetErrorString(kMESSAGE_UNINSTALL_DRIVER, "no message dirver installed");
-        SetErrorString(kMESSAGE_INVAILD_PARAM, "invalid paramater");
-        SetErrorString(kMESSAGE_ADDRESS_NOT_EXIST, "address not exist");
-        SetErrorString(kMESSAGE_BIND_ADDR_FAILED, "bind failed");
-        SetErrorString(kMESSAGE_CONNECT_ADDR_FAILED, "connect failed");
-        SetErrorString(kMESSAGE_ON_DISCONNECTED, "connection disconnected");
-        SetErrorString(kMESSAGE_RECV_INVAILD_MSG, "receive invalid message");
-        SetErrorString(kMESSAGE_RECV_BUFF_NOT_ENOUGH, "receive buffer not enough");
-        SetErrorString(kMESSAGE_RECV_EMPTY, "receive empty message");
-        SetErrorString(kMESSAGE_EPOLL_INIT_FAILED, "epoll init failed");
-        SetErrorString(kMESSAGE_NETIO_INIT_FAILED, "netio init failed");
-        SetErrorString(kMESSAGE_SEND_FAILED, "send failed");
-        SetErrorString(kMESSAGE_RECV_FAILED, "receive failed");
-        SetErrorString(kMESSAGE_UNSUPPORT, "unsupport interface");
-        SetErrorString(kMESSAGE_GET_EVENT_FAILED, "get net event failed");
-        SetErrorString(kMESSAGE_GET_ERR_EVENT, "geted ERR event");
-        SetErrorString(kMESSAGE_CACHE_FAILED, "cache message failed");
-        SetErrorString(kMESSAGE_SEND_BUFF_NOT_ENOUGH, "send buffer not enough");
-        SetErrorString(kMESSAGE_RECV_INVALID_DATA, "receive invalid message");
-        SetErrorString(kMESSAGE_UNKNOWN_CONNECTION, "unknown connection");
-    }
-};
-static MessageErrorStringRegister s_message_error_string_register;
-
-class DefaultMessageDriver {
-public:
-    DefaultMessageDriver() {
-        RawMessageDriver* driver = RawMessageDriver::Instance();
-        if (driver->Init() == 0) {
-            Message::SetMessageDriver(driver);
-        }
-    }
-    ~DefaultMessageDriver() {}
-};
-static DefaultMessageDriver s_default_message_driver;
-
 
 MessageDriver* Message::m_driver = NULL;
 
 int32_t Message::Init()
 {
-    return 0;
+    RawMessageDriver* driver = RawMessageDriver::Instance();
+    if (driver->Init() == 0) {
+        Message::SetMessageDriver(driver);
+        return 0;
+    }
+    return kMESSAGE_UNINSTALL_DRIVER;
 }
 
 int64_t Message::Bind(const std::string &url)

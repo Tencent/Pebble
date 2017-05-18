@@ -37,33 +37,8 @@ namespace pebble {
 
 #define ARRAYSIZE(a) (sizeof(a) / sizeof(*(a)))
 
-static DEVICE_TYPE  g_device_type    = DEV_FILE;
-static LOG_PRIORITY g_log_priority   = LOG_PRIORITY_INFO;
 static const char*  g_device_str[]   = { "STDOUT", "FILE" };
 static const char*  g_priority_str[] = { "TRACE", "DEBUG", "INFO", "ERROR", "FATAL" };
-
-static RollUtil* g_log_file = NULL;
-static RollUtil* g_error_file = NULL;
-static LogWriteFunc g_log_write_func;
-
-// PLOG对外提供static接口，内部需要使用RollUtil对象，为避免全局对象析构顺序问题，做一层包装
-class RollUtilHolder {
-public:
-    RollUtilHolder()
-        : m_log("./log", GetSelfName() + ".log")
-        , m_error("./log", GetSelfName() + ".error") {
-        g_log_file = &m_log;
-        g_error_file = &m_error;
-    }
-    ~RollUtilHolder() {
-        g_log_file = NULL;
-        g_error_file = NULL;
-    }
-private:
-    RollUtil m_log;
-    RollUtil m_error;
-};
-static RollUtilHolder g_roll_util_holder;
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -164,11 +139,38 @@ void InstallSignalHandler()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // log实现部分:
+
+Log::Log() {
+    m_device_type  = DEV_FILE;
+    m_log_priority = LOG_PRIORITY_INFO;
+
+    std::string self_name = GetSelfName();
+    m_log_array[kLOG_LOG]   = new RollUtil("./log", self_name + ".log");
+    m_log_array[kLOG_ERROR] = new RollUtil("./log", self_name + ".error");
+    m_log_array[kLOG_STAT]  = new RollUtil("./log", self_name + ".stat");
+}
+
+Log::Log(const Log& rhs) {
+    m_device_type  = DEV_FILE;
+    m_log_priority = LOG_PRIORITY_INFO;
+
+    for (int i = 0; i < kLOG_BUTT; i++) {
+        m_log_array[i] = NULL;
+    }
+}
+
+Log::~Log() {
+    for (int i = 0; i < kLOG_BUTT; i++) {
+        delete m_log_array[i];
+        m_log_array[i] = NULL;
+    }
+}
+
 void Log::Write(LOG_PRIORITY pri, const char* file, uint32_t line,
     const char* function, const char* fmt, ...)
 {
     // 优先级以PLOG为准，避免多做格式化
-    if (pri < g_log_priority) {
+    if (pri < m_log_priority) {
         return;
     }
 
@@ -176,7 +178,7 @@ void Log::Write(LOG_PRIORITY pri, const char* file, uint32_t line,
 
     // log前缀，接入其他log时不用组装
     int pre_len = 0;
-    if (!g_log_write_func) {
+    if (!m_log_write_func) {
         pre_len = snprintf(buff, ARRAYSIZE(buff), "[%s][%d][(%s:%d)(%s)][%s] ",
                 TimeUtility::GetStringTimeDetail(),
                 getpid(),
@@ -199,8 +201,8 @@ void Log::Write(LOG_PRIORITY pri, const char* file, uint32_t line,
     }
 
     // 输出到其他log
-    if (g_log_write_func) {
-        g_log_write_func(pri, file, line, function, buff);
+    if (m_log_write_func) {
+        m_log_write_func(pri, file, line, function, buff);
         return;
     }
 
@@ -214,41 +216,55 @@ void Log::Write(LOG_PRIORITY pri, const char* file, uint32_t line,
     buff[tail] = '\0';
 
     // 输出到stdout
-    if (DEV_STDOUT == g_device_type) {
+    if (DEV_STDOUT == m_device_type) {
         fprintf(stdout, "%s", buff);
         return;
     }
 
     // 输出到ERROR文件
-    if (pri >= LOG_PRIORITY_ERROR && g_error_file != NULL) {
-        FILE* error = g_error_file->GetFile();
+    if (pri >= LOG_PRIORITY_ERROR && m_log_array[kLOG_ERROR] != NULL) {
+        FILE* error = m_log_array[kLOG_ERROR]->GetFile();
         if (error != NULL) {
             fwrite(buff, tail, 1, error);
         }
     }
 
     // 输出到log文件
-    if (g_log_file != NULL) {
-        FILE* log = g_log_file->GetFile();
+    if (m_log_array[kLOG_LOG] != NULL) {
+        FILE* log = m_log_array[kLOG_LOG]->GetFile();
         if (log != NULL) {
             fwrite(buff, tail, 1, log);
         }
     }
 }
 
+void Log::Write(const char* data)
+{
+    if (m_log_array[kLOG_STAT] == NULL) {
+        return;
+    }
+
+    FILE* stat = m_log_array[kLOG_STAT]->GetFile();
+    if (stat != NULL) {
+        char buff[64] = {0};
+        int len = snprintf(buff, ARRAYSIZE(buff), "[%s] ", TimeUtility::GetStringTimeDetail());
+        fwrite(buff, len, 1, stat);
+        fwrite(data, strlen(data), 1, stat);
+    }
+}
+
 void Log::Close()
 {
-    if (g_log_file != NULL) {
-        g_log_file->Close();
-    }
-    if (g_error_file != NULL) {
-        g_error_file->Close();
+    for (int i = 0; i < kLOG_BUTT; i++) {
+        if (m_log_array[i]) {
+            m_log_array[i]->Close();
+        }
     }
 }
 
 void Log::RegisterLogWriteFunc(const LogWriteFunc& log_write_func)
 {
-    g_log_write_func = log_write_func;
+    m_log_write_func = log_write_func;
 }
 
 void Log::EnableCrashRecord()
@@ -258,11 +274,10 @@ void Log::EnableCrashRecord()
 
 void Log::Flush()
 {
-    if (g_log_file != NULL) {
-        g_log_file->Flush();
-    }
-    if (g_error_file != NULL) {
-        g_error_file->Flush();
+    for (int i = 0; i < kLOG_BUTT; i++) {
+        if (m_log_array[i]) {
+            m_log_array[i]->Flush();
+        }
     }
 }
 
@@ -271,7 +286,7 @@ int Log::SetOutputDevice(DEVICE_TYPE device)
     if (device < DEV_STDOUT || device > DEV_FILE) {
         return -1;
     }
-    g_device_type = device;
+    m_device_type = device;
     return 0;
 }
 
@@ -281,7 +296,7 @@ int Log::SetOutputDevice(const std::string& device)
     StringUtility::ToUpper(&tmp);
     for (uint32_t i = 0; i < ARRAYSIZE(g_device_str); i++) {
         if (g_device_str[i] == tmp) {
-            g_device_type = static_cast<DEVICE_TYPE>(i);
+            m_device_type = static_cast<DEVICE_TYPE>(i);
             return 0;
         }
     }
@@ -293,7 +308,7 @@ int Log::SetLogPriority(LOG_PRIORITY priority)
     if (priority < LOG_PRIORITY_TRACE || priority > LOG_PRIORITY_FATAL) {
         return -1;
     }
-    g_log_priority = priority;
+    m_log_priority = priority;
     return 0;
 }
 
@@ -303,7 +318,7 @@ int Log::SetLogPriority(const std::string& priority)
     StringUtility::ToUpper(&tmp);
     for (uint32_t i = 0; i < ARRAYSIZE(g_priority_str); i++) {
         if (g_priority_str[i] == tmp) {
-            g_log_priority = static_cast<LOG_PRIORITY>(i);
+            m_log_priority = static_cast<LOG_PRIORITY>(i);
             return 0;
         }
     }
@@ -317,31 +332,29 @@ void Log::SetMaxFileSize(uint32_t max_size_Mbytes)
         file_size = 1;
     }
     file_size = file_size * 1024 * 1024;
-    if (g_log_file != NULL) {
-        g_log_file->SetFileSize(file_size);
-    }
-    if (g_error_file != NULL) {
-        g_error_file->SetFileSize(file_size);
+
+    for (int i = 0; i < kLOG_BUTT; i++) {
+        if (m_log_array[i]) {
+            m_log_array[i]->SetFileSize(file_size);
+        }
     }
 }
 
 void Log::SetMaxRollNum(uint32_t num)
 {
-    if (g_log_file != NULL) {
-        g_log_file->SetRollNum(num);
-    }
-    if (g_error_file != NULL) {
-        g_error_file->SetRollNum(num);
+    for (int i = 0; i < kLOG_BUTT; i++) {
+        if (m_log_array[i]) {
+            m_log_array[i]->SetRollNum(num);
+        }
     }
 }
 
 void Log::SetFilePath(const std::string& file_path)
 {
-    if (g_log_file != NULL) {
-        g_log_file->SetFilePath(file_path);
-    }
-    if (g_error_file != NULL) {
-        g_error_file->SetFilePath(file_path);
+    for (int i = 0; i < kLOG_BUTT; i++) {
+        if (m_log_array[i]) {
+            m_log_array[i]->SetFilePath(file_path);
+        }
     }
 
     // 更改路径后log立即输出在新的路径下面

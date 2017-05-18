@@ -33,20 +33,6 @@
 
 namespace pebble {
 
-class CoroutineErrorStringRegister {
-public:
-    CoroutineErrorStringRegister() {
-        SetErrorString(kCO_INVALID_PARAM, "invalid paramater");
-        SetErrorString(kCO_NOT_IN_COROUTINE, "not in coroutine");
-        SetErrorString(kCO_NOT_RUNNING, "coroutine not running");
-        SetErrorString(kCO_START_TIMER_FAILED, "start timer failed");
-        SetErrorString(kCO_TIMEOUT, "coroutine timeout");
-        SetErrorString(kCO_CANNOT_RESUME_IN_COROUTINE, "cannot resume in coroutine");
-        SetErrorString(kCO_COROUTINE_UNEXIST, "coroutine unexist");
-        SetErrorString(kCO_COROUTINE_STATUS_ERROR, "coroute status error");
-    }
-};
-static CoroutineErrorStringRegister s_coroutine_error_string_register;
 
 struct stCoEpoll_t;
 struct stCoRoutineEnv_t {

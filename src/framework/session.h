@@ -33,6 +33,17 @@ typedef enum {
     kSESSION_START_TIMER_FAILED = kSESSION_ERROR_BASE - 4, // 启定时器失败
 } SessionErrorCode;
 
+class SessionErrorStringRegister {
+public:
+    static void RegisterErrorString() {
+        SetErrorString(kSESSION_INVALID_PARAM, "invalid paramater");
+        SetErrorString(kSESSION_ALREADY_EXISTED, "session already exist");
+        SetErrorString(kSESSION_UNEXISTED, "session unexist");
+        SetErrorString(kSESSION_START_TIMER_FAILED, "start timer failed");
+    }
+};
+
+
 /// @brief Session超时返回码定义
 typedef enum {
     kSESSION_BE_REMOVED   = -1,   // 超时后session被remove

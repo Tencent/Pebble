@@ -25,16 +25,6 @@
 
 namespace pebble {
 
-class TimerErrorStringRegister {
-public:
-    TimerErrorStringRegister() {
-        SetErrorString(kTIMER_INVALID_PARAM, "invalid paramater");
-        SetErrorString(kTIMER_NUM_OUT_OF_RANGE, "number of timer out of range");
-        SetErrorString(kTIMER_UNEXISTED, "timer unexist");
-        SetErrorString(kSYSTEM_ERROR, "system error");
-    }
-};
-static TimerErrorStringRegister s_timer_error_string_register;
 
 #if 0
 FdTimer::FdTimer() {

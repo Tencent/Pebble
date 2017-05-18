@@ -40,6 +40,21 @@ typedef enum {
     kCO_COROUTINE_STATUS_ERROR     = kCO_ERROR_BASE - 8, // 协程状态错误
 } CoroutineErrorCode;
 
+class CoroutineErrorStringRegister {
+public:
+    static void RegisterErrorString() {
+        SetErrorString(kCO_INVALID_PARAM, "invalid paramater");
+        SetErrorString(kCO_NOT_IN_COROUTINE, "not in coroutine");
+        SetErrorString(kCO_NOT_RUNNING, "coroutine not running");
+        SetErrorString(kCO_START_TIMER_FAILED, "start timer failed");
+        SetErrorString(kCO_TIMEOUT, "coroutine timeout");
+        SetErrorString(kCO_CANNOT_RESUME_IN_COROUTINE, "cannot resume in coroutine");
+        SetErrorString(kCO_COROUTINE_UNEXIST, "coroutine unexist");
+        SetErrorString(kCO_COROUTINE_STATUS_ERROR, "coroute status error");
+    }
+};
+
+
 #define COROUTINE_DEAD 0
 #define COROUTINE_READY 1
 #define COROUTINE_RUNNING 2

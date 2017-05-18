@@ -14,41 +14,23 @@
 #include <sstream>
 #include <string.h>
 
+#include "common/log.h"
 #include "common/timer.h"
 #include "common/time_utility.h"
 #include "framework/rpc.h"
 
 namespace pebble {
 
-class RpcErrorStringRegister {
-public:
-    RpcErrorStringRegister() {
-        SetErrorString(kRPC_INVALID_PARAM, "invalid paramater");
-        SetErrorString(kRPC_ENCODE_FAILED, "encode failed");
-        SetErrorString(kRPC_DECODE_FAILED, "decode failed");
-        SetErrorString(kRPC_RECV_EXCEPTION_MSG, "receive a exception message");
-        SetErrorString(kRPC_UNKNOWN_TYPE, "unknown message type received");
-        SetErrorString(kRPC_UNSUPPORT_FUNCTION_NAME, "unsupport function name");
-        SetErrorString(kRPC_SESSION_NOT_FOUND, "session is expired");
-        SetErrorString(kRPC_SEND_FAILED, "send failed");
-        SetErrorString(kRPC_REQUEST_TIMEOUT, "request timeout");
-        SetErrorString(kRPC_FUNCTION_NAME_EXISTED, "service name is already registered");
-        SetErrorString(kRPC_SYSTEM_ERROR, "system error");
-        SetErrorString(kRPC_PROCESS_TIMEOUT, "process service timeout");
-        SetErrorString(kPRC_BROADCAST_FAILED, "broadcast request failed");
-        SetErrorString(kRPC_FUNCTION_NAME_UNEXISTED, "service name unexisted");
-
-        SetErrorString(kRPC_MESSAGE_EXPIRED, "system overload: message expired");
-        SetErrorString(kRPC_TASK_OVERLOAD, "system overload: task overload");
-    }
-};
-static RpcErrorStringRegister s_rpc_error_string_register;
-
-
 /// @brief RPC会话数据结构定义
 struct RpcSession {
 private:
-    RpcSession(const RpcSession& rhs) {}
+    RpcSession(const RpcSession& rhs) {
+        m_session_id  = rhs.m_session_id;
+        m_handle      = rhs.m_handle;
+        m_timerid     = rhs.m_timerid;
+        m_start_time  = rhs.m_start_time;
+        m_server_side = rhs.m_server_side;
+    }
 public:
     RpcSession() {
         m_session_id  = 0;
@@ -67,7 +49,7 @@ public:
     OnRpcResponse m_rsp;
 };
 
-
+// TODO: timer改为外部传入
 IRpc::IRpc() {
     m_session_id        = 0;
     m_timer             = new SequenceTimer();
@@ -95,7 +77,7 @@ int32_t IRpc::OnMessage(int64_t handle, const uint8_t* msg,
     uint32_t msg_len, const MsgExternInfo* msg_info, uint32_t is_overload) {
 
     if (NULL == msg || 0 == msg_len) {
-        _LOG_LAST_ERROR("param invalid: buff = %p, buff_len = %u", msg, msg_len);
+        PLOG_ERROR("param invalid: buff = %p, buff_len = %u", msg, msg_len);
         return kRPC_INVALID_PARAM;
     }
 
@@ -103,12 +85,12 @@ int32_t IRpc::OnMessage(int64_t handle, const uint8_t* msg,
 
     int32_t head_len = HeadDecode(msg, msg_len, &head);
     if (head_len < 0) {
-        _LOG_LAST_ERROR("HeadDecode failed(%d).", head_len);
+        PLOG_ERROR("HeadDecode failed(%d).", head_len);
         return kRPC_DECODE_FAILED;
     }
 
     if (head_len > static_cast<int32_t>(msg_len)) {
-        _LOG_LAST_ERROR("head_len(%d) > buff_len(%u)", head_len, msg_len);
+        PLOG_ERROR("head_len(%d) > buff_len(%u)", head_len, msg_len);
         return kRPC_DECODE_FAILED;
     }
 
@@ -123,7 +105,7 @@ int32_t IRpc::OnMessage(int64_t handle, const uint8_t* msg,
         case kRPC_CALL:
             if (is_overload != 0) {
                 ret = ResponseException(handle, kRPC_SYSTEM_OVERLOAD_BASE - is_overload, head);
-                OnRequestProcComplete(head.m_function_name, kRPC_SYSTEM_OVERLOAD_BASE - is_overload, 0);
+                RequestProcComplete(head.m_function_name, kRPC_SYSTEM_OVERLOAD_BASE - is_overload, 0);
                 break;
             }
         case kRPC_ONEWAY:
@@ -137,7 +119,7 @@ int32_t IRpc::OnMessage(int64_t handle, const uint8_t* msg,
             break;
 
         default:
-            _LOG_LAST_ERROR("rpc msg type error(%d)", head.m_message_type);
+            PLOG_ERROR("rpc msg type error(%d)", head.m_message_type);
             break;
     }
 
@@ -146,12 +128,12 @@ int32_t IRpc::OnMessage(int64_t handle, const uint8_t* msg,
 
 int32_t IRpc::AddOnRequestFunction(const std::string& name, const OnRpcRequest& on_request) {
     if (name.empty() || !on_request) {
-        _LOG_LAST_ERROR("param invalid: name = %s, !on_request = %u", name.c_str(), !on_request);
+        PLOG_ERROR("param invalid: name = %s, !on_request = %u", name.c_str(), !on_request);
         return kRPC_INVALID_PARAM;
     }
 
     if (false == m_service_map.insert({name, on_request}).second) {
-        _LOG_LAST_ERROR("the %s is existed", name.c_str());
+        PLOG_ERROR("the %s is existed", name.c_str());
         return kRPC_FUNCTION_NAME_EXISTED;
     }
 
@@ -184,21 +166,20 @@ int32_t IRpc::SendRequest(int64_t handle,
                     int32_t timeout_ms) {
     // buff允许为空，长度非0时做非空检查
     if (buff_len != 0 && NULL == buff) {
-        _LOG_LAST_ERROR("param invalid: buff = %p, buff_len = %u", buff, buff_len);
+        PLOG_ERROR("param invalid: buff = %p, buff_len = %u", buff, buff_len);
         return kRPC_INVALID_PARAM;
     }
 
     // 发送请求
     int32_t ret = SendMessage(handle, rpc_head, buff, buff_len);
     if (ret != kRPC_SUCCESS) {
-        _LOG_LAST_ERROR("send failed(%d)", ret);
-        OnResponseProcComplete(rpc_head.m_function_name, kRPC_SEND_FAILED, 0);
+        ResponseProcComplete(rpc_head.m_function_name, kRPC_SEND_FAILED, 0);
         return ret;
     }
 
     // ONEWAY请求
     if (!on_rsp) {
-        OnResponseProcComplete(rpc_head.m_function_name, kRPC_SUCCESS, 0);
+        ResponseProcComplete(rpc_head.m_function_name, kRPC_SUCCESS, 0);
         return kRPC_SUCCESS;
     }
 
@@ -228,14 +209,14 @@ int32_t IRpc::BroadcastRequest(const std::string& name,
                     uint32_t buff_len) {
     // buff允许为空，长度非0时做非空检查
     if (buff_len != 0 && NULL == buff) {
-        _LOG_LAST_ERROR("param invalid: buff = %p, buff_len = %u", buff, buff_len);
+        PLOG_ERROR("param invalid: buff = %p, buff_len = %u", buff, buff_len);
         return kRPC_INVALID_PARAM;
     }
 
     // 发送请求
     int32_t head_len = HeadEncode(rpc_head, m_rpc_head_buff, sizeof(m_rpc_head_buff));
     if (head_len < 0) {
-        _LOG_LAST_ERROR("encode head failed(%d)", head_len);
+        PLOG_ERROR("encode head failed(%d)", head_len);
         return kRPC_ENCODE_FAILED;
     }
 
@@ -253,7 +234,7 @@ int32_t IRpc::SendResponse(uint64_t session_id, int32_t ret,
     cxx::unordered_map< uint64_t, cxx::shared_ptr<RpcSession> >::iterator it =
         m_session_map.find(session_id);
     if (m_session_map.end() == it) {
-        _LOG_LAST_ERROR("session %lu not found", session_id);
+        PLOG_ERROR("session %lu not found", session_id);
         return kRPC_SESSION_NOT_FOUND;
     }
 
@@ -261,31 +242,29 @@ int32_t IRpc::SendResponse(uint64_t session_id, int32_t ret,
 
     int32_t result = kRPC_SUCCESS;
     if (kRPC_SUCCESS == ret) {
+        // 业务处理成功，构造响应消息返回
         it->second->m_rpc_head.m_message_type = kRPC_REPLY;
-        ret = SendMessage(it->second->m_handle, it->second->m_rpc_head, buff, buff_len);
+        result = SendMessage(it->second->m_handle, it->second->m_rpc_head, buff, buff_len);
+        RequestProcComplete(it->second->m_rpc_head.m_function_name,
+            result, TimeUtility::GetCurrentMS() - it->second->m_start_time);
     } else {
+        // 业务处理失败，构造异常消息携带错误信息返回
         result = ResponseException(it->second->m_handle, ret, it->second->m_rpc_head, buff, buff_len);
+        RequestProcComplete(it->second->m_rpc_head.m_function_name,
+            ret, TimeUtility::GetCurrentMS() - it->second->m_start_time);
     }
-
-    OnRequestProcComplete(it->second->m_rpc_head.m_function_name,
-        ret, TimeUtility::GetCurrentMS() - it->second->m_start_time);
 
     m_session_map.erase(it);
     m_task_num--;
 
-    if (result != kRPC_SUCCESS || ret != kRPC_SUCCESS) {
-        _LOG_LAST_ERROR("send failed(%d,%d)", ret, result);
-        return kRPC_SEND_FAILED;
-    }
-
-    return ret;
+    return result;
 }
 
 int32_t IRpc::SendMessage(int64_t handle, const RpcHead& rpc_head,
     const uint8_t* buff, uint32_t buff_len) {
     int32_t head_len = HeadEncode(rpc_head, m_rpc_head_buff, sizeof(m_rpc_head_buff));
     if (head_len < 0) {
-        _LOG_LAST_ERROR("encode head failed(%d)", head_len);
+        PLOG_ERROR("encode head failed(%d)", head_len);
         return kRPC_ENCODE_FAILED;
     }
 
@@ -293,33 +272,39 @@ int32_t IRpc::SendMessage(int64_t handle, const RpcHead& rpc_head,
     uint32_t msg_frag_len[]   = { head_len       , buff_len };
 
     // 消息原路返回，如果有消息来源，则返回到来源点，如果无消息来源，走默认发送流程
+    int32_t send_ret = 0;
     if (rpc_head.m_dst) {
-        return rpc_head.m_dst->SendV(handle, sizeof(msg_frag)/sizeof(*msg_frag), msg_frag, msg_frag_len, 0);
+        send_ret = rpc_head.m_dst->SendV(handle, sizeof(msg_frag)/sizeof(*msg_frag), msg_frag, msg_frag_len, 0);
     }
 
-    return SendV(handle, sizeof(msg_frag)/sizeof(*msg_frag), msg_frag, msg_frag_len, 0);
+    send_ret = SendV(handle, sizeof(msg_frag)/sizeof(*msg_frag), msg_frag, msg_frag_len, 0);
+    if (send_ret != 0) {
+        PLOG_ERROR("send failed %d", send_ret);
+    }
+
+    return send_ret;
 }
 
 int32_t IRpc::OnTimeout(uint64_t session_id) {
     cxx::unordered_map< uint64_t, cxx::shared_ptr<RpcSession> >::iterator it =
         m_session_map.find(session_id);
     if (m_session_map.end() == it) {
-        _LOG_LAST_ERROR("session %lu not found", session_id);
-        return kRPC_SESSION_NOT_FOUND;
+        PLOG_ERROR("session %lu not found", session_id);
+        return kTIMER_BE_REMOVED;
     }
 
     // request timeout
     if ((it->second)->m_rsp) {
         (it->second)->m_rsp(kRPC_REQUEST_TIMEOUT, NULL, 0);
-        Message::ReportHandleResult(it->second->m_handle, kRPC_REQUEST_TIMEOUT, 0);
+        ReportTransportQuality(it->second->m_handle, kRPC_REQUEST_TIMEOUT, 0);
     }
 
     if (it->second->m_server_side) {
         m_task_num--;
-        OnRequestProcComplete(it->second->m_rpc_head.m_function_name,
+        RequestProcComplete(it->second->m_rpc_head.m_function_name,
             kRPC_PROCESS_TIMEOUT, TimeUtility::GetCurrentMS() - it->second->m_start_time);
     } else {
-        OnResponseProcComplete(it->second->m_rpc_head.m_function_name,
+        ResponseProcComplete(it->second->m_rpc_head.m_function_name,
             kRPC_REQUEST_TIMEOUT, TimeUtility::GetCurrentMS() - it->second->m_start_time);
     }
 
@@ -339,16 +324,16 @@ int32_t IRpc::ProcessRequestImp(int64_t handle, const RpcHead& rpc_head,
     cxx::unordered_map<std::string, OnRpcRequest>::iterator it =
         m_service_map.find(rpc_head.m_function_name);
     if (m_service_map.end() == it) {
-        _LOG_LAST_ERROR("%s's request proc func not found", rpc_head.m_function_name.c_str());
+        PLOG_ERROR("%s's request proc func not found", rpc_head.m_function_name.c_str());
         ResponseException(handle, kRPC_UNSUPPORT_FUNCTION_NAME, rpc_head);
-        OnRequestProcComplete(rpc_head.m_function_name, kRPC_UNSUPPORT_FUNCTION_NAME, 0);
+        RequestProcComplete(rpc_head.m_function_name, kRPC_UNSUPPORT_FUNCTION_NAME, 0);
         return kRPC_UNSUPPORT_FUNCTION_NAME;
     }
 
     if (kRPC_ONEWAY == rpc_head.m_message_type) {
         cxx::function<int32_t(int32_t, const uint8_t*, uint32_t)> rsp; // NOLINT
         int32_t ret = (it->second)(buff, buff_len, rsp);
-        OnRequestProcComplete(rpc_head.m_function_name, ret, 0);
+        RequestProcComplete(rpc_head.m_function_name, ret, 0);
         return ret;
     }
 
@@ -379,7 +364,7 @@ int32_t IRpc::ProcessResponse(const RpcHead& rpc_head,
     cxx::unordered_map< uint64_t, cxx::shared_ptr<RpcSession> >::iterator it =
         m_session_map.find(rpc_head.m_session_id);
     if (m_session_map.end() == it) {
-        _LOG_LAST_ERROR("session(%lu) not found, function_name(%s)",
+        PLOG_ERROR("session(%lu) not found, function_name(%s)",
                         rpc_head.m_session_id, rpc_head.m_function_name.c_str());
         return kRPC_SESSION_NOT_FOUND;
     }
@@ -394,7 +379,7 @@ int32_t IRpc::ProcessResponse(const RpcHead& rpc_head,
     if (kRPC_EXCEPTION == rpc_head.m_message_type) {
         int32_t len = ExceptionDecode(buff, buff_len, &exception);
         if (len < 0) {
-            _LOG_LAST_ERROR("ExceptionDecode failed(%d)", len);
+            PLOG_ERROR("ExceptionDecode failed(%d)", len);
             ret = kRPC_RECV_EXCEPTION_MSG;
             real_buff = NULL;
             real_buff_len = 0;
@@ -410,9 +395,8 @@ int32_t IRpc::ProcessResponse(const RpcHead& rpc_head,
     }
 
     int64_t time_cost = TimeUtility::GetCurrentMS() - it->second->m_start_time;
-    Message::ReportHandleResult(it->second->m_handle,
-        (ret == kRPC_MESSAGE_EXPIRED ? 0 : ret), time_cost);
-    OnResponseProcComplete(it->second->m_rpc_head.m_function_name, ret, time_cost);
+    ReportTransportQuality(it->second->m_handle, ret, time_cost);
+    ResponseProcComplete(it->second->m_rpc_head.m_function_name, ret, time_cost);
 
     m_session_map.erase(it);
 
@@ -430,26 +414,33 @@ int32_t IRpc::ResponseException(int64_t handle, int32_t ret, const RpcHead& rpc_
         exception.m_message.assign((const char*)buff, buff_len);
     }
 
-    int32_t len = ExceptionEncode(exception, m_rpc_exception_buff, sizeof(m_rpc_exception_buff));
-    if (len < 0) {
-        _LOG_LAST_ERROR("ExceptionEncode failed, len = %d", len);
-        len = 0;
+    int32_t result = ExceptionEncode(exception, m_rpc_exception_buff, sizeof(m_rpc_exception_buff));
+    if (result < 0) {
+        PLOG_ERROR("ExceptionEncode failed, ret = %d", result);
+        return result;
     }
 
-    return SendMessage(handle, rpc_head, m_rpc_exception_buff, len);
+    return SendMessage(handle, rpc_head, m_rpc_exception_buff, result);
 }
 
-void IRpc::OnRequestProcComplete(const std::string& name,
-    int32_t result, int32_t time_cost_ms) {
+void IRpc::ReportTransportQuality(int64_t handle, int32_t ret_code,
+        int64_t time_cost_ms) {
     if (m_event_handler) {
-        m_event_handler->OnRequestProcComplete(name, result, time_cost_ms);
+        m_event_handler->ReportTransportQuality(handle, ret_code, time_cost_ms);
     }
 }
 
-void IRpc::OnResponseProcComplete(const std::string& name,
+void IRpc::RequestProcComplete(const std::string& name,
     int32_t result, int32_t time_cost_ms) {
     if (m_event_handler) {
-        m_event_handler->OnResponseProcComplete(name, result, time_cost_ms);
+        m_event_handler->RequestProcComplete(name, result, time_cost_ms);
+    }
+}
+
+void IRpc::ResponseProcComplete(const std::string& name,
+    int32_t result, int32_t time_cost_ms) {
+    if (m_event_handler) {
+        m_event_handler->ResponseProcComplete(name, result, time_cost_ms);
     }
 }
 

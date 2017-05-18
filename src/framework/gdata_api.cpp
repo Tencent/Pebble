@@ -40,10 +40,12 @@ namespace oss {
 #define DEFAULT_LOG_FILE_SIZE_LIMIT 20971520
 
 
-static SUniqueSeriesID g_unique_series("0", "0", "0", "0"); 
-
 static RollUtil* roll_util_water   = NULL;
 static RollUtil* roll_util_monitor = NULL;
+static char g_game_id[128] = {0};
+static char g_unit_id[128] = {0};
+static char g_server_id[128]   = {0};
+static char g_instance_id[128] = {0};
 
 
 /*
@@ -84,7 +86,10 @@ static std::string FormatTimeStamp(time_t utc_time, const std::string& format)
 int CLogDataAPI::InitDataLog(IN const SUniqueSeriesID& unique_series_id, IN const std::string& file_path)
 {
     std::string data_file_path = file_path;
-    g_unique_series = unique_series_id;
+    snprintf(g_game_id, sizeof(g_game_id), "%s", unique_series_id.m_game_id.c_str());
+    snprintf(g_unit_id, sizeof(g_unit_id), "%s", unique_series_id.m_unit_id.c_str());
+    snprintf(g_server_id, sizeof(g_server_id), "%s", unique_series_id.m_server_id.c_str());
+    snprintf(g_instance_id, sizeof(g_instance_id), "%s", unique_series_id.m_instance_id.c_str());
     if(data_file_path.empty())
     {
         data_file_path = DEFAULT_LOG_FILE_PATH;
@@ -102,10 +107,10 @@ int CLogDataAPI::InitDataLog(IN const SUniqueSeriesID& unique_series_id, IN cons
     oss.str("");
     oss << DEFAULT_LOG_FILE_PREFIX 
         << DEFAULT_LOG_FILE_SEPARATOR << DEFAULT_WATER_LOG_NAME
-        << DEFAULT_LOG_FILE_SEPARATOR << g_unique_series.m_game_id
-        << DEFAULT_LOG_FILE_SEPARATOR << g_unique_series.m_unit_id
-        << DEFAULT_LOG_FILE_SEPARATOR << g_unique_series.m_server_id
-        << DEFAULT_LOG_FILE_SEPARATOR << g_unique_series.m_instance_id
+        << DEFAULT_LOG_FILE_SEPARATOR << g_game_id
+        << DEFAULT_LOG_FILE_SEPARATOR << g_unit_id
+        << DEFAULT_LOG_FILE_SEPARATOR << g_server_id
+        << DEFAULT_LOG_FILE_SEPARATOR << g_instance_id
         << DEFAULT_LOG_FILE_SEPARATOR << DEFAULT_LOG_FILE_SUFFIX;
     std::string water_name = oss.str();
 
@@ -115,10 +120,10 @@ int CLogDataAPI::InitDataLog(IN const SUniqueSeriesID& unique_series_id, IN cons
     oss.str("");
     oss << DEFAULT_LOG_FILE_PREFIX 
         << DEFAULT_LOG_FILE_SEPARATOR << DEFAULT_MONITOR_LOG_NAME
-        << DEFAULT_LOG_FILE_SEPARATOR << g_unique_series.m_game_id
-        << DEFAULT_LOG_FILE_SEPARATOR << g_unique_series.m_unit_id
-        << DEFAULT_LOG_FILE_SEPARATOR << g_unique_series.m_server_id
-        << DEFAULT_LOG_FILE_SEPARATOR << g_unique_series.m_instance_id
+        << DEFAULT_LOG_FILE_SEPARATOR << g_game_id
+        << DEFAULT_LOG_FILE_SEPARATOR << g_unit_id
+        << DEFAULT_LOG_FILE_SEPARATOR << g_server_id
+        << DEFAULT_LOG_FILE_SEPARATOR << g_instance_id
         << DEFAULT_LOG_FILE_SEPARATOR << DEFAULT_LOG_FILE_SUFFIX;
     std::string monitor_name = oss.str();
 
@@ -148,10 +153,10 @@ void CLogDataAPI::LogWater(IN const SWaterData& water_data)
         << DEFAULT_DATA_LOG_SEPARATOR << "logid=" << water_data.log_id
         << DEFAULT_DATA_LOG_SEPARATOR << "date=" << FormatTimeStamp(water_data.datetime, DEFAULT_TIMESTAMP_DATE_FORMAT)
         << DEFAULT_DATA_LOG_SEPARATOR << "hour=" << FormatTimeStamp(water_data.datetime, DEFAULT_TIMESTAMP_HOUR_FORMAT)
-        << DEFAULT_DATA_LOG_SEPARATOR << "gameid=" << g_unique_series.m_game_id 
-        << DEFAULT_DATA_LOG_SEPARATOR << "unitid=" << g_unique_series.m_unit_id
-        << DEFAULT_DATA_LOG_SEPARATOR << "serverid=" << g_unique_series.m_server_id 
-        << DEFAULT_DATA_LOG_SEPARATOR << "instanceid=" << g_unique_series.m_instance_id 
+        << DEFAULT_DATA_LOG_SEPARATOR << "gameid=" << g_game_id 
+        << DEFAULT_DATA_LOG_SEPARATOR << "unitid=" << g_unit_id
+        << DEFAULT_DATA_LOG_SEPARATOR << "serverid=" << g_server_id 
+        << DEFAULT_DATA_LOG_SEPARATOR << "instanceid=" << g_instance_id
         << DEFAULT_DATA_LOG_SEPARATOR << "ip=" << water_data.ip 
         << DEFAULT_DATA_LOG_SEPARATOR << "timestamp=" << water_data.datetime
         << DEFAULT_DATA_LOG_SEPARATOR << "transid=" << water_data.trans_id
@@ -176,10 +181,10 @@ void CLogDataAPI::LogMonitor(IN const SMonitorData& monitor_data)
         << DEFAULT_DATA_LOG_SEPARATOR << "logid=" << monitor_data.log_id
         << DEFAULT_DATA_LOG_SEPARATOR << "date=" << FormatTimeStamp(monitor_data.datetime, DEFAULT_TIMESTAMP_DATE_FORMAT)
         << DEFAULT_DATA_LOG_SEPARATOR << "hour=" << FormatTimeStamp(monitor_data.datetime, DEFAULT_TIMESTAMP_HOUR_FORMAT)
-        << DEFAULT_DATA_LOG_SEPARATOR << "gameid=" << g_unique_series.m_game_id 
-        << DEFAULT_DATA_LOG_SEPARATOR << "unitid=" << g_unique_series.m_unit_id
-        << DEFAULT_DATA_LOG_SEPARATOR << "serverid=" << g_unique_series.m_server_id 
-        << DEFAULT_DATA_LOG_SEPARATOR << "instanceid=" << g_unique_series.m_instance_id 
+        << DEFAULT_DATA_LOG_SEPARATOR << "gameid=" << g_game_id 
+        << DEFAULT_DATA_LOG_SEPARATOR << "unitid=" << g_unit_id
+        << DEFAULT_DATA_LOG_SEPARATOR << "serverid=" << g_server_id 
+        << DEFAULT_DATA_LOG_SEPARATOR << "instanceid=" << g_instance_id 
         << DEFAULT_DATA_LOG_SEPARATOR << "service_name=" << monitor_data.service_name
         << DEFAULT_DATA_LOG_SEPARATOR << "interface_name=" << monitor_data.interface_name
         << DEFAULT_DATA_LOG_SEPARATOR << "cost_time=" << monitor_data.cost_time

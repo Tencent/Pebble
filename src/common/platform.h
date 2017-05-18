@@ -73,7 +73,7 @@
 #define  UINT64_MAX  0xffffffffffffffffULL
 #endif
 
-namespace pebble {
+namespace common {
 namespace stdcxx {
 
 #ifdef CXX11_ENABLED
@@ -133,8 +133,8 @@ using ::std::tr1::make_tuple;
 #endif
 
 } // namespace stdcxx
-} // namespace pebble
+} // namespace common
 
-namespace cxx = pebble::stdcxx;
+namespace cxx = common::stdcxx;
 
 #endif // _PEBBLE_COMMON_PLATFORM_H_

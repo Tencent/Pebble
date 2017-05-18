@@ -12,13 +12,20 @@
  */
 
 #include "framework/event_handler.inh"
+#include "framework/rpc.h"
 #include "framework/stat.h"
 #include "framework/stat_manager.h"
 
 
 namespace pebble {
 
-void RpcEventHandler::OnRequestProcComplete(const std::string& name,
+void RpcEventHandler::ReportTransportQuality(int64_t handle, int32_t ret_code,
+    int64_t time_cost_ms) {
+    Message::ReportHandleResult(handle,
+        (ret_code == kRPC_MESSAGE_EXPIRED ? 0 : ret_code), time_cost_ms);
+}
+
+void RpcEventHandler::RequestProcComplete(const std::string& name,
     int32_t result, int32_t time_cost_ms) {
     if (m_stat_manager) {
         std::string message_name("_recv_rpc_");
@@ -28,7 +35,7 @@ void RpcEventHandler::OnRequestProcComplete(const std::string& name,
     }
 }
 
-void RpcEventHandler::OnResponseProcComplete(const std::string& name,
+void RpcEventHandler::ResponseProcComplete(const std::string& name,
     int32_t result, int32_t time_cost_ms) {
     if (m_stat_manager) {
         std::string message_name("_send_rpc_");
@@ -38,7 +45,7 @@ void RpcEventHandler::OnResponseProcComplete(const std::string& name,
     }
 }
 
-void BroadcastEventHandler::OnRequestProcComplete(const std::string& name,
+void BroadcastEventHandler::RequestProcComplete(const std::string& name,
     int32_t result, int32_t time_cost_ms) {
     if (m_stat_manager) {
         std::string message_name("_broadcast_");

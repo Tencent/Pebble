@@ -32,6 +32,7 @@
 #include "framework/message.h"
 #include "framework/monitor.h"
 #include "framework/pebble_rpc.h"
+#include "framework/register_error.h"
 #include "framework/session.h"
 #include "framework/stat.h"
 #include "framework/stat_manager.h"
@@ -45,7 +46,15 @@ namespace pebble {
 
 static const char* prefix_tbuspp = "tbuspp://";
 
-std::string PebbleServer::m_version;
+const char* GetVersion() {
+    static char version[256] = {0};
+
+    snprintf(version, sizeof(version), "Pebble : %s %s %s",
+        PebbleVersion::GetVersion().c_str(), __TIME__, __DATE__);
+
+    return version;
+}
+
 
 static struct {
     int32_t _stop;
@@ -320,6 +329,8 @@ int32_t PebbleServer::Init(AppEventHandler* event_handler) {
 
     m_event_handler = event_handler;
 
+    RegisterErrorString();
+
     InitLog();
 
     PLOG_INFO("%s", m_options.ToString().c_str());
@@ -331,6 +342,9 @@ int32_t PebbleServer::Init(AppEventHandler* event_handler) {
     CHECK_RETURN(ret);
 
     ret = InitStat();
+    CHECK_RETURN(ret);
+
+    ret = Message::Init();
     CHECK_RETURN(ret);
 
     InitMonitor();
@@ -674,18 +688,9 @@ void PebbleServer::Idle() {
         return;
     }
 
-    Log::Flush();
+    Log::Instance().Flush();
 
     usleep(m_options._idle_us);
-}
-
-const char* PebbleServer::GetVersion() {
-    if (m_version.empty()) {
-        std::ostringstream oss;
-        oss << "Pebble : " << PebbleVersion::GetVersion() << " " << __TIME__ << " " << __DATE__;
-        m_version = oss.str();
-    }
-    return m_version.c_str();
 }
 
 int32_t PebbleServer::ProcessMessage() {
@@ -730,11 +735,11 @@ int32_t PebbleServer::ProcessMessage() {
 }
 
 void PebbleServer::InitLog() {
-    Log::SetOutputDevice(m_options._log_device);
-    Log::SetLogPriority(m_options._log_priority);
-    Log::SetMaxFileSize(m_options._log_file_size_MB);
-    Log::SetMaxRollNum(m_options._log_roll_num);
-    Log::SetFilePath(m_options._log_path);
+    Log::Instance().SetOutputDevice(m_options._log_device);
+    Log::Instance().SetLogPriority(m_options._log_priority);
+    Log::Instance().SetMaxFileSize(m_options._log_file_size_MB);
+    Log::Instance().SetMaxRollNum(m_options._log_roll_num);
+    Log::Instance().SetFilePath(m_options._log_path);
 
     // Log::EnableCrashRecord();
 }
@@ -1044,7 +1049,7 @@ int32_t PebbleServer::InitControlService() {
 
     ret = rpc->AddService(m_control_handler);
     if (ret != 0) {
-        PLOG_ERROR("Add Control Service failed(%d,%s)", ret, rpc->GetLastError());
+        PLOG_ERROR("Add Control Service failed(%d)", ret);
         return -1;
     }
 
@@ -1148,7 +1153,7 @@ void PebbleServer::OnControlLog(const std::vector<std::string>& options,
         return;
     }
 
-    *ret_code = Log::SetLogPriority(options.front());
+    *ret_code = Log::Instance().SetLogPriority(options.front());
     if (*ret_code != 0) {
         data->assign("option is ");
         data->append(options.front());

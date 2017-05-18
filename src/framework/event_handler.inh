@@ -34,10 +34,13 @@ public:
         return 0;
     }
 
-    virtual void OnRequestProcComplete(const std::string& name,
+    virtual void ReportTransportQuality(int64_t handle, int32_t ret_code,
+        int64_t time_cost_ms);
+
+    virtual void RequestProcComplete(const std::string& name,
         int32_t result, int32_t time_cost_ms);
 
-    virtual void OnResponseProcComplete(const std::string& name,
+    virtual void ResponseProcComplete(const std::string& name,
         int32_t result, int32_t time_cost_ms);
 
 private:
@@ -54,10 +57,13 @@ public:
         return 0;
     }
 
-    virtual void OnRequestProcComplete(const std::string& name,
+    virtual void ReportTransportQuality(int64_t handle, int32_t ret_code,
+        int64_t time_cost_ms) {}
+
+    virtual void RequestProcComplete(const std::string& name,
         int32_t result, int32_t time_cost_ms);
 
-    virtual void OnResponseProcComplete(const std::string& name,
+    virtual void ResponseProcComplete(const std::string& name,
         int32_t result, int32_t time_cost_ms) {}
 
 private:
