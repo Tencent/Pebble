@@ -275,9 +275,10 @@ int32_t IRpc::SendMessage(int64_t handle, const RpcHead& rpc_head,
     int32_t send_ret = 0;
     if (rpc_head.m_dst) {
         send_ret = rpc_head.m_dst->SendV(handle, sizeof(msg_frag)/sizeof(*msg_frag), msg_frag, msg_frag_len, 0);
+    } else {
+        send_ret = SendV(handle, sizeof(msg_frag)/sizeof(*msg_frag), msg_frag, msg_frag_len, 0);
     }
 
-    send_ret = SendV(handle, sizeof(msg_frag)/sizeof(*msg_frag), msg_frag, msg_frag_len, 0);
     if (send_ret != 0) {
         PLOG_ERROR("send failed %d", send_ret);
     }

@@ -2675,7 +2675,9 @@ void t_cpp_generator::generate_service_client(t_service* tservice, string style)
       indent() << "// 设置路由key，如使用取模或哈希路由策略时使用" << endl <<
       indent() << "void SetRouteKey(uint64_t route_key);" << endl << endl <<
       indent() << "// 设置广播的频道名字，设置了频道后Client将所有的RPC请求按广播处理，广播至channel_name" << endl <<
-      indent() << "void SetBroadcast(const std::string& channel_name);" << endl <<
+      indent() << "void SetBroadcast(const std::string& channel_name);" << endl << endl <<
+      indent() << "// 设置RPC请求超时时间(单位ms)，未指定方法名时对所有方法生效，指定方法名时只对指定方法生效，默认的超时时间为10s" << endl <<
+      indent() << "int SetTimeout(uint32_t timeout_ms, const char* method_name = NULL);" << endl <<
       endl;
   }
 
@@ -2745,6 +2747,7 @@ void t_cpp_generator::generate_service_client(t_service* tservice, string style)
     f_service_h_ << indent(1) << "cxx::function<int64_t(uint64_t)> m_route_func;" << endl;
     f_service_h_ << indent(1) << "uint64_t m_route_key;" << endl;
     f_service_h_ << indent(1) << "std::string m_channel_name;" << endl;
+    f_service_h_ << indent(1) << "cxx::unordered_map<std::string, int32_t> m_methods;" << endl;
   }
 
   f_service_h_ <<
@@ -2761,13 +2764,19 @@ void t_cpp_generator::generate_service_client(t_service* tservice, string style)
     out <<  " {" << endl;
     out << indent(1) << "m_client = rpc;" << endl;
     out << indent(1) << "m_route_key = 0;" << endl;
+    for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
+      out << indent(1) << "m_methods[\"" << (*f_iter)->get_name() << "\"] = " << (*f_iter)->get_timeout_ms() << ";" << endl;
+    }
     out << indent() << "}" << endl;
   } else {
     out <<  ":" << endl;
     out <<
       indent(1) << type_name(tservice->get_extends()) << client_suffix <<
-      "(rpc) {" << endl <<
-      "}" << endl;
+      "(rpc) {" << endl;
+      for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
+        out << indent(1) << "m_methods[\"" << (*f_iter)->get_name() << "\"] = " << (*f_iter)->get_timeout_ms() << ";" << endl;
+      }
+    out << indent() << "}" << endl;
   }
   out << endl;
 
@@ -2794,6 +2803,23 @@ void t_cpp_generator::generate_service_client(t_service* tservice, string style)
 
     out << "void " << scope << "SetBroadcast(const std::string& channel_name) {" << endl <<
       indent(1) << "m_channel_name = channel_name;" << endl <<
+      "}" << endl <<
+      endl;
+
+    out << "int " << scope << "SetTimeout(uint32_t timeout_ms, const char* method_name) {" << endl <<
+      indent(1) << "if (method_name != NULL) {" << endl <<
+      indent(2) << "cxx::unordered_map<std::string, int32_t>::iterator it = m_methods.find(method_name);" << endl <<
+      indent(2) << "if (it == m_methods.end()) {" << endl <<
+      indent(3) << "return pebble::kRPC_UNSUPPORT_FUNCTION_NAME;" << endl <<
+      indent(2) << "}" << endl <<
+      indent(2) << "it->second = timeout_ms;" << endl <<
+      indent(2) << "return 0;" << endl <<
+      indent(1) << "}" << endl <<
+      endl <<
+      indent(1) << "for (cxx::unordered_map<std::string, int32_t>::iterator it = m_methods.begin(); it != m_methods.end(); ++it) {" << endl <<
+      indent(2) << "it->second = timeout_ms;" << endl <<
+      indent(1) << "}" << endl << endl <<
+      indent(1) << "return 0;" << endl <<
       "}" << endl <<
       endl;
 
@@ -2871,7 +2897,7 @@ void t_cpp_generator::generate_service_client(t_service* tservice, string style)
       out << indent(1) <<
         "pebble::OnRpcResponse on_rsp = cxx::bind(&" << scope << "recv_" << funname << "_sync, this," << endl << indent(2) <<
         "cxx::placeholders::_1, cxx::placeholders::_2, cxx::placeholders::_3" << ret_sync << ");" << endl << indent(1) <<
-        "return m_client->SendRequestSync(GetHandle(), head, buff, buff_len, on_rsp, " << (*f_iter)->get_timeout_ms() << ");" <<
+        "return m_client->SendRequestSync(GetHandle(), head, buff, buff_len, on_rsp, m_methods[\"" << funname << "\"]);" <<
         endl;
       out << indent() << "} else {" << endl << indent(1) <<
         "return m_client->BroadcastRequest(m_channel_name, head, buff, buff_len);" << endl << indent() <<
@@ -2883,7 +2909,7 @@ void t_cpp_generator::generate_service_client(t_service* tservice, string style)
         endl;
       out << indent(1) <<
         "pebble::OnRpcResponse on_rsp;" << endl << indent(1) <<
-        "int32_t ret = m_client->SendRequest(GetHandle(), head, buff, buff_len, on_rsp, " << (*f_iter)->get_timeout_ms() << ");" << endl << indent(1) <<
+        "int32_t ret = m_client->SendRequest(GetHandle(), head, buff, buff_len, on_rsp, m_methods[\"" << funname << "\"]);" << endl << indent(1) <<
         "if (ret != pebble::kRPC_SUCCESS) {" << endl << indent(2) <<
         "return ret;" << endl << indent(1) <<
         "}" << endl <<
@@ -2967,7 +2993,7 @@ void t_cpp_generator::generate_service_client(t_service* tservice, string style)
         out << indent(1) <<
           "pebble::OnRpcResponse on_rsp = cxx::bind(&" << scope << "recv_" << funname << "_parallel, this," << endl << indent(2) <<
           "cxx::placeholders::_1, cxx::placeholders::_2, cxx::placeholders::_3, ret_code" << ret_sync << ");" << endl << indent(1) <<
-          "m_client->SendRequestParallel(GetHandle(), head, buff, buff_len, on_rsp, " << (*f_iter)->get_timeout_ms() << ", ret_code, num_called, num_parallel" << ");" <<
+          "m_client->SendRequestParallel(GetHandle(), head, buff, buff_len, on_rsp, m_methods[\"" << funname << "\"], ret_code, num_called, num_parallel" << ");" <<
           endl;
         out << indent() << "} else {" << endl << indent(1) <<
           "*ret_code = m_client->BroadcastRequest(m_channel_name, head, buff, buff_len);" << endl << indent(1) <<
@@ -2985,7 +3011,7 @@ void t_cpp_generator::generate_service_client(t_service* tservice, string style)
               "--(*num_parallel);" << endl << indent() <<
         out << indent(1) <<
           "pebble::OnRpcResponse on_rsp;" << endl << indent(1) <<
-          "int32_t ret = m_client->SendRequest(GetHandle(), head, buff, buff_len, on_rsp, " << (*f_iter)->get_timeout_ms() << ");" << endl << indent(1) <<
+          "int32_t ret = m_client->SendRequest(GetHandle(), head, buff, buff_len, on_rsp, m_methods[\"" << funname << "\"]);" << endl << indent(1) <<
           "if (ret != pebble::kRPC_SUCCESS) {" << endl << indent(2) <<
           "*ret_code = ret;" << endl << indent(1) <<
           "return *ret_code;" << endl << indent(1) <<
@@ -3071,7 +3097,7 @@ void t_cpp_generator::generate_service_client(t_service* tservice, string style)
       out << indent(1) <<
         "pebble::OnRpcResponse on_rsp = cxx::bind(&" << scope << "recv_" << funname << ", this," << endl << indent(2) <<
         "cxx::placeholders::_1, cxx::placeholders::_2, cxx::placeholders::_3, cb);" << endl << indent(1) <<
-        "int32_t ret = m_client->SendRequest(GetHandle(), head, buff, buff_len, on_rsp, " << (*f_iter)->get_timeout_ms() << ");" << endl << indent(1) <<
+        "int32_t ret = m_client->SendRequest(GetHandle(), head, buff, buff_len, on_rsp, m_methods[\"" << funname << "\"]);" << endl << indent(1) <<
         "if (ret != pebble::kRPC_SUCCESS) {" << endl << indent(2) <<
         "cb(ret" << ret_str << ");" << endl << indent(2) <<
         "return;" << endl << indent(1) <<

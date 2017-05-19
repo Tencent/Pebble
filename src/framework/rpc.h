@@ -275,20 +275,20 @@ private:
     int32_t ResponseException(int64_t handle, int32_t ret, const RpcHead& rpc_head,
         const uint8_t* buff = NULL, uint32_t buff_len = 0);
 
-    void ReportTransportQuality(int64_t handle, int32_t ret_code,
+    inline void ReportTransportQuality(int64_t handle, int32_t ret_code,
         int64_t time_cost_ms);
 
-    void RequestProcComplete(const std::string& name,
+    inline void RequestProcComplete(const std::string& name,
         int32_t result, int32_t time_cost_ms);
 
-    void ResponseProcComplete(const std::string& name,
+    inline void ResponseProcComplete(const std::string& name,
         int32_t result, int32_t time_cost_ms);
 
 private:
     cxx::unordered_map<std::string, OnRpcRequest> m_service_map;
 
     uint8_t m_rpc_head_buff[1024];
-    uint8_t m_rpc_exception_buff[102400];
+    uint8_t m_rpc_exception_buff[10240];
 
     SequenceTimer* m_timer;
     uint64_t m_session_id;
