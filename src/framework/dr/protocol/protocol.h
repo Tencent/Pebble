@@ -655,10 +655,6 @@ class TProtocol {
     return ptrans_;
   }
 
-  virtual void setRouteType(int route_type) {}
-
-  virtual void setRouteKey(uint64_t route_key) {}
-
   // TODO: remove these two calls, they are for backwards
   // compatibility
   inline cxx::shared_ptr<TTransport> getInputTransport() {

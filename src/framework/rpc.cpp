@@ -380,7 +380,7 @@ int32_t IRpc::ProcessResponse(const RpcHead& rpc_head,
     if (kRPC_EXCEPTION == rpc_head.m_message_type) {
         int32_t len = ExceptionDecode(buff, buff_len, &exception);
         if (len < 0) {
-            PLOG_ERROR("ExceptionDecode failed(%d)", len);
+            PLOG_ERROR("ExceptionDecode failed(%d), exception data len = %u", len, buff_len);
             ret = kRPC_RECV_EXCEPTION_MSG;
             real_buff = NULL;
             real_buff_len = 0;
@@ -417,8 +417,8 @@ int32_t IRpc::ResponseException(int64_t handle, int32_t ret, const RpcHead& rpc_
 
     int32_t result = ExceptionEncode(exception, m_rpc_exception_buff, sizeof(m_rpc_exception_buff));
     if (result < 0) {
-        PLOG_ERROR("ExceptionEncode failed, ret = %d", result);
-        return result;
+        PLOG_ERROR("ExceptionEncode failed, ret = %d, exception data len = %u", result, buff_len);
+        result = 0;
     }
 
     return SendMessage(handle, rpc_head, m_rpc_exception_buff, result);

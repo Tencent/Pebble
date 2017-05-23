@@ -70,6 +70,7 @@ dr::protocol::TProtocol* PebbleRpc::GetCodec(MemoryPolicy mem_policy) {
         if (kCODE_JSON == m_code_type) {
             (static_cast<dr::protocol::TJSONProtocol*>(codec))->clearContext();
         }
+        codec->reset();
         return codec;
     }
 
@@ -102,6 +103,7 @@ dr::protocol::TProtocol* PebbleRpc::GetCodec(MemoryPolicy mem_policy) {
     }
 
     m_codec_array[mem_policy] = codec;
+    codec->reset();
     return codec;
 }
 
