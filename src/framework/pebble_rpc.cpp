@@ -66,11 +66,11 @@ dr::protocol::TProtocol* PebbleRpc::GetCodec(MemoryPolicy mem_policy) {
 
     dr::protocol::TProtocol* codec = m_codec_array[mem_policy];
     if (codec != NULL) {
+        codec->reset();
         (static_cast<dr::transport::TMemoryBuffer*>(codec->getTransport().get()))->resetBuffer();
         if (kCODE_JSON == m_code_type) {
             (static_cast<dr::protocol::TJSONProtocol*>(codec))->clearContext();
         }
-        codec->reset();
         return codec;
     }
 
@@ -103,7 +103,6 @@ dr::protocol::TProtocol* PebbleRpc::GetCodec(MemoryPolicy mem_policy) {
     }
 
     m_codec_array[mem_policy] = codec;
-    codec->reset();
     return codec;
 }
 

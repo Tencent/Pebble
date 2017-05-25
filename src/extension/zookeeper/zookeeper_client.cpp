@@ -332,7 +332,7 @@ void ConnectWatcher(zhandle_t* zh, int type, int state, const char *path, void *
         return;
     }
 
-    std::tr1::function<void(int, const char*)> cb = zkclient->GetWatchCallback();
+    cxx::function<void(int, const char*)> cb = zkclient->GetWatchCallback();
     if (cb)
     {
         cb(type, path);

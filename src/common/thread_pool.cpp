@@ -59,7 +59,7 @@ int ThreadPool::Init(int32_t thread_num, int32_t mode) {
     return 0;
 }
 
-int ThreadPool::AddTask(std::tr1::function<void()>& fun, int64_t task_id) {
+int ThreadPool::AddTask(cxx::function<void()>& fun, int64_t task_id) {
     if (!m_initialized) {
         return -1;
     }

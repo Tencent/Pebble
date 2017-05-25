@@ -241,18 +241,19 @@ int32_t IRpc::SendResponse(uint64_t session_id, int32_t ret,
     m_timer->StopTimer(it->second->m_timerid);
 
     int32_t result = kRPC_SUCCESS;
+    int32_t error_code = kRPC_SUCCESS;
     if (kRPC_SUCCESS == ret) {
         // 业务处理成功，构造响应消息返回
         it->second->m_rpc_head.m_message_type = kRPC_REPLY;
         result = SendMessage(it->second->m_handle, it->second->m_rpc_head, buff, buff_len);
-        RequestProcComplete(it->second->m_rpc_head.m_function_name,
-            result, TimeUtility::GetCurrentMS() - it->second->m_start_time);
+        error_code = result;
     } else {
         // 业务处理失败，构造异常消息携带错误信息返回
         result = ResponseException(it->second->m_handle, ret, it->second->m_rpc_head, buff, buff_len);
-        RequestProcComplete(it->second->m_rpc_head.m_function_name,
-            ret, TimeUtility::GetCurrentMS() - it->second->m_start_time);
+        error_code = ret;
     }
+    RequestProcComplete(it->second->m_rpc_head.m_function_name,
+        error_code, TimeUtility::GetCurrentMS() - it->second->m_start_time);
 
     m_session_map.erase(it);
     m_task_num--;

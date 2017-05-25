@@ -159,11 +159,11 @@ public:
     // Base64(sha1(gameid:gamekey))
     static std::string DigestEncrypt(const std::string& id_passwd);
 
-    void SetWatchCallback(std::tr1::function<void(int, const char*)> cb) {
+    void SetWatchCallback(cxx::function<void(int, const char*)> cb) {
         m_watch_cb = cb;
     }
 
-    std::tr1::function<void(int, const char*)> GetWatchCallback() {
+    cxx::function<void(int, const char*)> GetWatchCallback() {
         return m_watch_cb;
     }
 
@@ -180,7 +180,7 @@ private:
     zhandle_t* m_zk_handle;
 
     std::set<std::string> m_auths_set;
-    std::tr1::function<void(int, const char*)> m_watch_cb;
+    cxx::function<void(int, const char*)> m_watch_cb;
     std::set<std::string> m_get_watch;
     std::set<std::string> m_get_child_watch;
     std::set<std::string> m_exist_watch;

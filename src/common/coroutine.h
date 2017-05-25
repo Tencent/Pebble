@@ -67,7 +67,7 @@ typedef void (*coroutine_func)(struct schedule *, void *ud);
 
 struct coroutine {
     coroutine_func func;
-    std::tr1::function<void()> std_func;
+    cxx::function<void()> std_func;
     void *ud;
     ucontext_t ctx;
     struct schedule * sch;
@@ -116,7 +116,7 @@ void coroutine_close(struct schedule *);
 /// @param 协程执行体的函数指针
 /// @return 协程ID
 /// @note 只能够在主线程调用
-int64_t coroutine_new(struct schedule *, std::tr1::function<void()>& std_func);
+int64_t coroutine_new(struct schedule *, cxx::function<void()>& std_func);
 
 /// @brief 创建一个协程
 /// @param 协程调度器结构体指针

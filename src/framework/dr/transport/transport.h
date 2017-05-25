@@ -21,7 +21,7 @@
 #define PEBBLE_DR_TRANSPORT_TTRANSPORT_H
 
 #include <string>
-#include <tr1/memory>
+#include "common/platform.h"
 #include "framework/dr/transport/transport_exception.h"
 
 namespace pebble { namespace dr { namespace transport {

@@ -169,7 +169,7 @@ static pid_t GetPid()
 }
 
 struct coroutine *
-_co_new(struct schedule *S, std::tr1::function<void()>& std_func) {
+_co_new(struct schedule *S, cxx::function<void()>& std_func) {
     if (NULL == S) {
         assert(0);
         return NULL;
@@ -294,7 +294,7 @@ void coroutine_close(struct schedule *S) {
 
     g_arrCoEnvPerThread[pid] = 0;
 }
-int64_t coroutine_new(struct schedule *S, std::tr1::function<void()>& std_func) {
+int64_t coroutine_new(struct schedule *S, cxx::function<void()>& std_func) {
     if (NULL == S) {
         return -1;
     }

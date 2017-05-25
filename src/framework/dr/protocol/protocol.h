@@ -23,8 +23,7 @@
 #include "framework/dr/common/dr_define.h"
 #include "framework/dr/transport/transport.h"
 #include "framework/dr/protocol/protocol_exception.h"
-
-#include <tr1/memory>
+#include "common/platform.h"
 
 #ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
@@ -685,7 +684,7 @@ class TProtocol {
     , recursion_limit_(DEFAULT_RECURSION_LIMIT) {}
 
   cxx::shared_ptr<TTransport> ptrans_;
- 
+
   TProtocol() : recursion_depth_(0)
     , recursion_limit_(DEFAULT_RECURSION_LIMIT) {}
   private:

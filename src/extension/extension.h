@@ -21,6 +21,7 @@
 //#include "extension/tbuspp/tbuspp_router.h"
 #include "extension/zookeeper/zookeeper_naming.h"
 #include "common/log.h"
+#include "common/platform.h"
 
 
 // 扩展插件安装 : 对于Pebble的扩展部分，为避免显式依赖，需要在使用时显式安装，不使用时不用安装

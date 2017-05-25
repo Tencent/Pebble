@@ -139,7 +139,7 @@ private:
     int32_t  m_epoll_fd;
     uint32_t m_max_timer_num;
     int64_t  m_timer_seqid;
-    std::tr1::unordered_map<int64_t, TimerItem*> m_timers;
+    cxx::unordered_map<int64_t, TimerItem*> m_timers;
     char m_last_error[256];
 };
 #endif

@@ -72,7 +72,7 @@ public:
     //                  否则已完成队列会不断堆积
     //
     /// @return 0: 成功 其他: 失败
-    int AddTask(std::tr1::function<void()>& fun, int64_t task_id = -1);
+    int AddTask(cxx::function<void()>& fun, int64_t task_id = -1);
 
     /// @brief 获得线程池的运行状态（暂时还未实现）
     ///
@@ -92,7 +92,7 @@ public:
 private:
     struct Task {
     public:
-        std::tr1::function<void()> fun;
+        cxx::function<void()> fun;
         int64_t task_id;
     };
 

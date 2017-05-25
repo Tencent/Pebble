@@ -418,6 +418,7 @@ void t_cpp_generator::init_generator() {
 
   // The swap() code needs <algorithm> for std::swap()
   f_types_cpp_ << "#include <algorithm>" << endl;
+  f_types_cpp_ << "#include \"common/platform.h\"" << endl;
   // for operator<<
   f_types_cpp_ << "#include <ostream>" << endl << endl;
   f_types_cpp_ << "#include \"framework/dr/common/to_string.h\"" << endl;
@@ -1964,7 +1965,7 @@ void t_cpp_generator::generate_struct_reflection_info(std::ofstream& out, t_stru
 
   out << indent() << "if (s_type_info == NULL) {" << endl;
   indent_up();
-  out << indent() << "std::tr1::unordered_map<std::string, pebble::dr::reflection::FieldInfo *> field_infos;" << endl;
+  out << indent() << "cxx::unordered_map<std::string, pebble::dr::reflection::FieldInfo *> field_infos;" << endl;
   out << indent() << "pebble::dr::reflection::AttributesType struct_attrs;" << endl << endl;
 
   typedef map<string, map<string, string> >::iterator AttributesIterator;

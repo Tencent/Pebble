@@ -44,8 +44,6 @@
 
 namespace pebble {
 
-static const char* prefix_tbuspp = "tbuspp://";
-
 const char* GetVersion() {
     static char version[256] = {0};
 
@@ -365,33 +363,10 @@ int32_t PebbleServer::Init(AppEventHandler* event_handler) {
     return 0;
 }
 
-int64_t PebbleServer::Bind(const std::string &url, bool register_name) {
+int64_t PebbleServer::Bind(const std::string &url) {
     int64_t handle = Message::Bind(url);
-    if (handle < 0) {
-        PLOG_ERROR("bind %s failed(%ld:%s)", url.c_str(), handle, Message::GetLastError());
-        return handle;
-    }
-    // bind成功后注册名字只对tbuspp有效，目前tbuspp名字和传输耦合较紧，解耦后可适用其他传输协议
-    if (register_name && StringUtility::StartsWith(url, prefix_tbuspp)) {
-        Naming* naming = GetNaming();
-        if (naming == NULL) {
-            Message::Close(handle);
-            PLOG_ERROR("bind %s success, but get naming failed", url.c_str());
-            return -1;
-        }
-        // url 格式为 tbuspp://appid.path.name/instanceid
-        std::string service_name(url);
-        StringUtility::StripPrefix(&service_name, prefix_tbuspp);   // 去掉 "tbuspp://"
-        service_name.resize(service_name.find_last_of('/'));        // 去掉 "/instanceid"
-        StringUtility::string_replace(".", "/", &service_name);     // tbuspp名字用'/'分隔，名字前要有'/'
-        int32_t ret = naming->Register("/" + service_name, url, m_options._app_instance_id);
-        if (ret != 0) {
-            Message::Close(handle);
-            PLOG_ERROR("register name %s url %s failed(%d:%s)", service_name.c_str(), url.c_str(),
-                ret, naming->GetLastError());
-            return -1;
-        }
-    }
+    PLOG_IF_ERROR(handle < 0, "bind %s failed(%ld:%s)", url.c_str(), handle, Message::GetLastError());
+    // tbuspp升级后bind时默认就注册名字了
     return handle;
 }
 

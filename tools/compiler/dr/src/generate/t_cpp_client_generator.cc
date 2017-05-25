@@ -2058,7 +2058,7 @@ void t_cpp_client_generator::generate_struct_reflection_info(std::ofstream& out,
 
   out << indent() << "if (s_type_info == NULL) {" << endl;
   indent_up();
-  out << indent() << "std::tr1::unordered_map<std::string, pebble::rpc::reflection::FieldInfo *> field_infos;" << endl;
+  out << indent() << "cxx::unordered_map<std::string, pebble::rpc::reflection::FieldInfo *> field_infos;" << endl;
   out << indent() << "pebble::rpc::reflection::AttributesType struct_attrs;" << endl << endl;
 
   typedef map<string, map<string, string> >::iterator AttributesIterator;

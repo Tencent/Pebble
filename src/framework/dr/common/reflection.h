@@ -16,8 +16,8 @@
 #define PEBBLE_DR_REFLECTION_H
 
 #include <string>
-#include <tr1/unordered_map>
 #include <map>
+#include "common/platform.h"
 #include "framework/dr/protocol/protocol.h"
 
 namespace pebble { namespace dr { namespace reflection {
@@ -133,11 +133,11 @@ class TypeInfo : public Attributable {
 public:
     /// @brief 获取所有字段的信息
     /// @return 返回字段名到字段信息的unordered_map
-    inline const std::tr1::unordered_map<std::string, FieldInfo *>* GetFieldInfos() const {
+    inline const cxx::unordered_map<std::string, FieldInfo *>* GetFieldInfos() const {
         return &m_field_infos;
     }
 
-    TypeInfo(std::tr1::unordered_map<std::string, FieldInfo *> field_infos,
+    TypeInfo(cxx::unordered_map<std::string, FieldInfo *> field_infos,
             AttributesType attributes)
         : Attributable(attributes)
           , m_field_infos(field_infos)
@@ -145,7 +145,7 @@ public:
     }
 
 private:
-    std::tr1::unordered_map<std::string, FieldInfo *> m_field_infos;
+    cxx::unordered_map<std::string, FieldInfo *> m_field_infos;
 };
 
 template<typename T>

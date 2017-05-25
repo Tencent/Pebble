@@ -14,10 +14,10 @@
 #ifndef PEBBLE_DR_SERIALIZE_H
 #define PEBBLE_DR_SERIALIZE_H
 
-#include "framework/dr/transport/virtual_transport.h"
 #include <string>
 #include <stdlib.h>
-
+#include "common/platform.h"
+#include "framework/dr/transport/virtual_transport.h"
 
 namespace pebble { namespace dr { namespace detail {
 class ArrayOutOfBoundsException : public pebble::TException {

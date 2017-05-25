@@ -31,7 +31,7 @@ class ZookeeperNaming;
 
 /// @brief 异步操作(打开或关闭)频道的执行结果回调
 /// @param ret_code 执行结果返回值
-typedef std::tr1::function<void(int ret_code, const std::string& channel)> CbHandleChannel;
+typedef cxx::function<void(int ret_code, const std::string& channel)> CbHandleChannel;
 
 
 /// @brief 维护频道和订阅信息

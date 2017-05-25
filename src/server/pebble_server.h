@@ -153,11 +153,10 @@ public:
     ///     "http://127.0.0.1:8880[/service]"
     ///     "tcp://127.0.0.1:8880"
     ///     "udp://127.0.0.1:8880"
-    /// @param register_name bind成功后是否同时注册名字，注意只对tbuspp地址生效
     /// @return >=0 表示成功
     /// @return <0 表示失败，错误码@see MessageErrorCode
     /// @note 原生tcp/udp与tbuspp协议只能二选一
-    int64_t Bind(const std::string &url, bool register_name = false);
+    int64_t Bind(const std::string &url);
 
     /// @brief (客户端)连接到指定url
     /// @param url 指定url，形式类似：
