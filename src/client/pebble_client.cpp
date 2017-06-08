@@ -60,7 +60,7 @@ PebbleClient::PebbleClient() {
         m_naming_array[i] = NULL;
     }
 
-    for (int32_t i = 0; i < kPROCESSOR_TYPE_BUTT; ++i) {
+    for (int32_t i = 0; i < kPROTOCOL_TYPE_BUTT; ++i) {
         m_processor_array[i] = NULL;
     }
 }
@@ -76,7 +76,7 @@ PebbleClient::~PebbleClient() {
         delete m_naming_array[i];
     }
 
-    for (int32_t i = 0; i < kPROCESSOR_TYPE_BUTT; ++i) {
+    for (int32_t i = 0; i < kPROTOCOL_TYPE_BUTT; ++i) {
         delete m_processor_array[i];
     }
 
@@ -150,23 +150,14 @@ int32_t PebbleClient::Attach(Router* router, IProcessor* processor) {
     return 0;
 }
 
-
-IProcessor* PebbleClient::GetProcessor(ProcessorType processor_type) {
-    if (processor_type < kPEBBLE_RPC_BINARY || processor_type > kPEBBLE_RPC_PROTOBUF) {
-        return GetPebbleRpc(processor_type);
-    }
-    // 目前只有RPC相关的Processor，若有扩展，需要这里处理
-    return NULL;
-}
-
-PebbleRpc* PebbleClient::GetPebbleRpc(ProcessorType processor_type) {
-    if (processor_type < kPEBBLE_RPC_BINARY || processor_type > kPEBBLE_RPC_PROTOBUF) {
-        PLOG_ERROR("param processor_type invalid(%d)", processor_type);
+PebbleRpc* PebbleClient::GetPebbleRpc(ProtocolType protocol_type) {
+    if (protocol_type < kPEBBLE_RPC_BINARY || protocol_type > kPEBBLE_RPC_PROTOBUF) {
+        PLOG_ERROR("param protocol_type invalid(%d)", protocol_type);
         return NULL;
     }
 
-    if (m_processor_array[processor_type] != NULL) {
-        return dynamic_cast<PebbleRpc*>(m_processor_array[processor_type]);
+    if (m_processor_array[protocol_type] != NULL) {
+        return dynamic_cast<PebbleRpc*>(m_processor_array[protocol_type]);
     }
 
     if (!m_rpc_event_handler) {
@@ -175,7 +166,7 @@ PebbleRpc* PebbleClient::GetPebbleRpc(ProcessorType processor_type) {
     }
 
     CodeType rpc_code_type = kCODE_BUTT;
-    switch (processor_type) {
+    switch (protocol_type) {
         case kPEBBLE_RPC_BINARY:
             rpc_code_type = kCODE_BINARY;
             break;
@@ -189,14 +180,14 @@ PebbleRpc* PebbleClient::GetPebbleRpc(ProcessorType processor_type) {
             break;
 
         default:
-            PLOG_FATAL("unsupport processor type %d", processor_type);
+            PLOG_FATAL("unsupport protocol type %d", protocol_type);
             return NULL;
     }
 
     PebbleRpc* rpc_instance = new PebbleRpc(rpc_code_type, m_coroutine_schedule);
     rpc_instance->SetSendFunction(Message::Send, Message::SendV);
     rpc_instance->SetEventHandler(m_rpc_event_handler);
-    m_processor_array[processor_type] = rpc_instance;
+    m_processor_array[protocol_type] = rpc_instance;
 
     return rpc_instance;
 }
@@ -396,17 +387,13 @@ void PebbleClient::StatCoroutine(Stat* stat) {
 }
 
 void PebbleClient::StatProcessorResource(Stat* stat) {
-    uint32_t task_num = 0;
     cxx::unordered_map<std::string, int64_t> resource;
     cxx::unordered_map<std::string, int64_t>::iterator it;
 
-    for (int32_t i = 0; i < kPROCESSOR_TYPE_BUTT; ++i) {
+    for (int32_t i = 0; i < kPROTOCOL_TYPE_BUTT; ++i) {
         if (NULL == m_processor_array[i]) {
             continue;
         }
-
-        // 统计任务数，目前内置Processor任务数实际为协程数
-        task_num += m_processor_array[i]->GetUnFinishedTaskNum();
 
         // 统计Processor使用动态资源情况
         resource.clear();
@@ -415,8 +402,6 @@ void PebbleClient::StatProcessorResource(Stat* stat) {
             stat->AddResourceItem(it->first, it->second);
         }
     }
-
-    stat->AddResourceItem("_task", task_num);
 }
 
 SessionMgr* PebbleClient::GetSessionMgr() {

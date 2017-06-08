@@ -77,8 +77,8 @@ static int find_field(const std::vector<int16_t> &path, size_t path_idx,
 
         uint32_t xfer = 0;
         std::string fname;
-        ::pebble::dr::protocol::TType ftype;
-        int16_t fid;
+        ::pebble::dr::protocol::TType ftype = ::pebble::dr::protocol::T_NULL;
+        int16_t fid = -1;
 
         xfer = protocol.readStructBegin(fname);
         while (true) {

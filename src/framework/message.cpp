@@ -22,6 +22,10 @@ MessageDriver* Message::m_driver = NULL;
 
 int32_t Message::Init()
 {
+    if (m_driver != NULL) {
+        return 0;
+    }
+
     RawMessageDriver* driver = RawMessageDriver::Instance();
     if (driver->Init() == 0) {
         Message::SetMessageDriver(driver);

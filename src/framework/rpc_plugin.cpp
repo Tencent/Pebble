@@ -143,7 +143,7 @@ int32_t ThriftRpcPlugin::HeadDecode(const uint8_t* buff, uint32_t buff_len, RpcH
     int32_t head_len = -1;
     try {
         int64_t seqid = 0;
-        pebble::dr::protocol::TMessageType msg_type;
+        pebble::dr::protocol::TMessageType msg_type = pebble::dr::protocol::T_EXCEPTION;
         head_len = decoder->readMessageBegin(rpc_head->m_function_name, msg_type, seqid);
         rpc_head->m_message_type = static_cast<int32_t>(msg_type);
         rpc_head->m_session_id   = static_cast<uint64_t>(seqid);

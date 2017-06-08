@@ -142,19 +142,11 @@ public:
     virtual int32_t SendV(int64_t handle, uint32_t msg_frag_num,
                           const uint8_t* msg_frag[], uint32_t msg_frag_len[], int32_t flag);
 
-    /// @brief 获取未结束的任务数，用于过载判断
-    /// @return 实际未结束的任务数
-    virtual uint32_t GetUnFinishedTaskNum() = 0;
-
     /// @brief Processor上报动态资源使用情况，由各Processor实现者填写内部维护的动态资源信息，框架定期调用
     ///     如 Processor内部session的个数 myprocessor:session:9999
     /// @param resource_info name-value的表，name为资源名称，value为值
     /// @note Processor的对象标示可以组合在name中
     virtual void GetResourceUsed(cxx::unordered_map<std::string, int64_t>* resource_info) = 0;
-
-    /// @brief 返回最后错误字符串描述
-    /// @return 最后一次错误的信息
-    const char* GetLastError() const;
 
 protected:
     IEventHandler* m_event_handler;
@@ -171,7 +163,7 @@ public:
     ProcessorFactory() {}
     virtual ~ProcessorFactory() {}
     virtual IProcessor* GetProcessor() = 0;
-    virtual IProcessor* GetProcessor(Timer* timer, IProcessor* inproc_processor) = 0;
+    virtual IProcessor* GetProcessor(IProcessor* inproc_processor) = 0;
 };
 
 /// @brief 设置指定类型的Processor工厂

@@ -66,7 +66,7 @@ struct LookaheadStream {
             return '\0';
         }
 
-        Ch buff;
+        Ch buff = 0;
         try {
             if (taked_) {
                 taked_ = false;

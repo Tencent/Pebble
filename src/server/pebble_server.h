@@ -41,6 +41,7 @@ class Naming;
 class NamingFactory;
 class PebbleControlHandler;
 class PebbleServer;
+class PipeProcessor;
 class RouterFactory;
 class SessionMgr;
 class Stat;
@@ -66,7 +67,7 @@ public:
     /// @brief Init事件回调处理
     /// @return <0 失败
     /// @return  0 成功
-    virtual int32_t OnInit(PebbleServer* pebble_server) { return 0; }
+    virtual int32_t OnInit(::pebble::PebbleServer* pebble_server) { return 0; }
 
     /// @brief Stop事件回调处理
     /// @return <0 不允许stop
@@ -104,14 +105,14 @@ typedef enum {
     kROUTER_BUTT
 } RouterType;
 
-/// @brief Processor类型定义
+/// @brief 消息编码协议类型定义
 typedef enum {
-    kPEBBLE_RPC_BINARY = 0, // thrift binary编码的pebble rpc实例
-    kPEBBLE_RPC_JSON,       // thrift json编码的pebble rpc实例
-    kPEBBLE_RPC_PROTOBUF,   // protobuf编码的pebble rpc实例
-    kPEBBLE_PIPE,           // pipe协议的processor实例
-    kPROCESSOR_TYPE_BUTT
-} ProcessorType;
+    kPEBBLE_RPC_BINARY = 0, // thrift binary编码协议
+    kPEBBLE_RPC_JSON,       // thrift json编码协议
+    kPEBBLE_RPC_PROTOBUF,   // protobuf编码协议
+    kPEBBLE_PIPE,           // pipe协议，pipe是接入gconnd的私有协议，上面承载其他rpc编码协议
+    kPROTOCOL_TYPE_BUTT
+} ProtocolType;
 
 
 /// @brief 控制命令处理函数，不能有阻塞操作
@@ -173,18 +174,17 @@ public:
     /// @brief 启动服务，此调用会阻塞当前线程(循环处理事件，若无事件处理会Idle)
     void Serve();
 
-    /// @brief 返回Pebble预定义的Processor
-    /// @param processor_type @see ProcesserType
+    /// @brief 返回PebbleRpc实例
+    /// @param protocol_type @see ProtocolType
     /// @return 非NULL 成功
     /// @return NULL 失败
-    IProcessor* GetProcessor(ProcessorType processor_type);
+    PebbleRpc* GetPebbleRpc(ProtocolType protocol_type);
 
-    /// @brief pebble支持processor嵌套，返回包含嵌套Processor的实例，如PipeProcessor(嵌套PebbleRpc Binary)
-    /// @param processor_type @see ProcesserType
-    /// @param nest_processor_type @see ProcesserType 嵌套的processor类型
+    /// @brief 返回PipeProcessor实例
+    /// @param inproc_protocol_type 指定inproc消息的编码协议
     /// @return 非NULL 成功
     /// @return NULL 失败
-    IProcessor* GetProcessor(ProcessorType processor_type, ProcessorType nest_processor_type);
+    PipeProcessor* GetPipeProcessor(ProtocolType inproc_protocol_type);
 
     /// @brief 指定传输接入的业务处理程序
     /// @param handle 传输通道句柄
@@ -204,34 +204,28 @@ public:
 
     /// @brief 创建一个指定类型的RPC stub实例，只创建不回收，对象需要用户释放
     /// @param service_address 服务的地址，如"udp://127.0.0.1:8880" @see Connect(url)
-    /// @param processor_type 使用的RPC类型
+    /// @param protocol_type 使用的RPC编码协议类型
     /// @return RPC_CLIENT对象，为NULL时创建失败，新创建的对象需要用户释放
     template<class RPC_CLIENT>
     RPC_CLIENT* NewRpcClientByAddress(const std::string& service_address,
-        ProcessorType processor_type = kPEBBLE_RPC_BINARY);
+        ProtocolType protocol_type = kPEBBLE_RPC_BINARY);
 
     /// @brief 创建一个指定类型的RPC stub实例，只创建不回收，对象需要用户释放
     /// @param service_name 服务的名字，默认根据名字寻址
-    /// @param processor_type 使用的RPC类型
+    /// @param processor_type 使用的RPC编码协议类型
     /// @param router 路由器，使用名字寻址时默认采用轮询策略，用户可获取router实例来修改路由策略
     /// @return RPC_CLIENT对象，为NULL时创建失败，新创建的对象需要用户释放
     template<class RPC_CLIENT>
     RPC_CLIENT* NewRpcClientByName(const std::string& service_name,
-        ProcessorType processor_type = kPEBBLE_RPC_BINARY, Router** router = NULL);
+        ProtocolType protocol_type = kPEBBLE_RPC_BINARY, Router** router = NULL);
 
     /// @brief 创建一个指定类型的RPC stub实例，只创建不回收，对象需要用户释放
     /// @param channel_name 广播频道的名字
-    /// @param processor_type 使用的RPC类型
+    /// @param processor_type 使用的RPC编码协议类型
     /// @return RPC_CLIENT对象，为NULL时创建失败，新创建的对象需要用户释放
     template<class RPC_CLIENT>
     RPC_CLIENT* NewRpcClientByChannel(const std::string& channel_name,
-        ProcessorType processor_type = kPEBBLE_RPC_BINARY);
-
-    /// @brief 返回PebbleRpc实例，实际是GetProcessor的另一种易用法
-    /// @param processor_type @see ProcesserType
-    /// @return 非NULL 成功
-    /// @return NULL 失败
-    PebbleRpc* GetPebbleRpc(ProcessorType processor_type);
+        ProtocolType protocol_type = kPEBBLE_RPC_BINARY);
 
     /// @brief 返回内置名字服务对象
     /// @param naming_type 名字服务类型，@see NamingType
@@ -363,7 +357,7 @@ private:
     TaskMonitor*       m_task_monitor;
     MessageExpireMonitor* m_message_expire_monitor;
     Naming*            m_naming_array[kNAMING_BUTT];
-    IProcessor*        m_processor_array[kPROCESSOR_TYPE_BUTT];
+    IProcessor*        m_processor_array[kPROTOCOL_TYPE_BUTT];
     IEventHandler*     m_rpc_event_handler;
     IEventHandler*     m_broadcast_event_handler;
     StatManager*       m_stat_manager;
@@ -387,10 +381,10 @@ private:
 
 template<class RPC_CLIENT>
 RPC_CLIENT* PebbleServer::NewRpcClientByAddress(const std::string& service_address,
-    ProcessorType processor_type) {
-    PebbleRpc* pebble_rpc = GetPebbleRpc(processor_type);
+    ProtocolType protocol_type) {
+    PebbleRpc* pebble_rpc = GetPebbleRpc(protocol_type);
     if (pebble_rpc == NULL) {
-        PLOG_ERROR("GetPebbleRpc failed, processor_type: %d", processor_type);
+        PLOG_ERROR("GetPebbleRpc failed, protocol_type: %d", protocol_type);
         return NULL;
     }
     int64_t handle = Connect(service_address);
@@ -412,10 +406,10 @@ RPC_CLIENT* PebbleServer::NewRpcClientByAddress(const std::string& service_addre
 
 template<class RPC_CLIENT>
 RPC_CLIENT* PebbleServer::NewRpcClientByName(const std::string& service_name,
-    ProcessorType processor_type, Router** router) {
-    PebbleRpc* pebble_rpc = GetPebbleRpc(processor_type);
+    ProtocolType protocol_type, Router** router) {
+    PebbleRpc* pebble_rpc = GetPebbleRpc(protocol_type);
     if (pebble_rpc == NULL) {
-        PLOG_ERROR("GetPebbleRpc failed, processor_type: %d", processor_type);
+        PLOG_ERROR("GetPebbleRpc failed, protocol_type: %d", protocol_type);
         return NULL;
     }
     Router* new_router = GetRouter(service_name);
@@ -437,14 +431,14 @@ RPC_CLIENT* PebbleServer::NewRpcClientByName(const std::string& service_name,
 
 template<class RPC_CLIENT>
 RPC_CLIENT* PebbleServer::NewRpcClientByChannel(const std::string& channel_name,
-    ProcessorType processor_type) {
+    ProtocolType protocol_type) {
     if (channel_name.empty()) {
         PLOG_ERROR("invalid channel_name");
         return NULL;
     }
-    PebbleRpc* pebble_rpc = GetPebbleRpc(processor_type);
+    PebbleRpc* pebble_rpc = GetPebbleRpc(protocol_type);
     if (pebble_rpc == NULL) {
-        PLOG_ERROR("GetPebbleRpc failed, processor_type: %d", processor_type);
+        PLOG_ERROR("GetPebbleRpc failed, processor_type: %d", protocol_type);
         return NULL;
     }
     RPC_CLIENT* client = new RPC_CLIENT(pebble_rpc);

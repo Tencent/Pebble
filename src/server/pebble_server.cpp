@@ -44,6 +44,7 @@
 
 namespace pebble {
 
+
 const char* GetVersion() {
     static char version[256] = {0};
 
@@ -282,7 +283,7 @@ PebbleServer::PebbleServer() {
         m_naming_array[i] = NULL;
     }
 
-    for (int32_t i = 0; i < kPROCESSOR_TYPE_BUTT; ++i) {
+    for (int32_t i = 0; i < kPROTOCOL_TYPE_BUTT; ++i) {
         m_processor_array[i] = NULL;
     }
 }
@@ -298,7 +299,7 @@ PebbleServer::~PebbleServer() {
         delete m_naming_array[i];
     }
 
-    for (int32_t i = 0; i < kPROCESSOR_TYPE_BUTT; ++i) {
+    for (int32_t i = 0; i < kPROTOCOL_TYPE_BUTT; ++i) {
         delete m_processor_array[i];
     }
 
@@ -430,64 +431,14 @@ int32_t PebbleServer::Attach(Router* router, IProcessor* processor) {
     return 0;
 }
 
-IProcessor* PebbleServer::GetProcessor(ProcessorType processor_type) {
-    switch (processor_type) {
-        case kPEBBLE_RPC_BINARY:
-        case kPEBBLE_RPC_JSON:
-        case kPEBBLE_RPC_PROTOBUF:
-            return GetPebbleRpc(processor_type);
-
-        case kPEBBLE_PIPE:
-            PLOG_ERROR("pipe processor must spesify nest processor, please call "
-                "GetProcessor(ProcessorType processor_type, ProcessorType nest_processor_type)");
-            break;
-
-        default:
-            PLOG_ERROR("unsupport processor type %d", processor_type);
-            break;
-    }
-    return NULL;
-}
-
-IProcessor* PebbleServer::GetProcessor(ProcessorType processor_type,
-    ProcessorType nest_processor_type) {
-    cxx::shared_ptr<ProcessorFactory> factory;
-    switch (processor_type) {
-        case kPEBBLE_RPC_BINARY:
-        case kPEBBLE_RPC_JSON:
-        case kPEBBLE_RPC_PROTOBUF:
-            PLOG_ERROR("processor type %d unsupport nest, please call "
-                "GetProcessor(ProcessorType processor_type)", processor_type);
-            break;
-
-        case kPEBBLE_PIPE:
-            if (m_processor_array[processor_type] != NULL) {
-                return m_processor_array[processor_type];
-            }
-            factory = GetProcessorFactory(kPEBBLE_PIPE);
-            if (!factory) {
-                PLOG_ERROR("pipe processor factory not installed.");
-                return NULL;
-            }
-            m_processor_array[processor_type] =
-                factory->GetProcessor(GetTimer(), GetProcessor(nest_processor_type));
-            return m_processor_array[processor_type];
-
-        default:
-            PLOG_ERROR("unsupport processor type %d", processor_type);
-            break;
-    }
-    return NULL;
-}
-
-PebbleRpc* PebbleServer::GetPebbleRpc(ProcessorType processor_type) {
-    if (processor_type < kPEBBLE_RPC_BINARY || processor_type > kPEBBLE_RPC_PROTOBUF) {
-        PLOG_ERROR("param processor_type invalid(%d)", processor_type);
+PebbleRpc* PebbleServer::GetPebbleRpc(ProtocolType protocol_type) {
+    if (protocol_type < kPEBBLE_RPC_BINARY || protocol_type > kPEBBLE_RPC_PROTOBUF) {
+        PLOG_ERROR("param protocol_type invalid(%d)", protocol_type);
         return NULL;
     }
 
-    if (m_processor_array[processor_type] != NULL) {
-        return dynamic_cast<PebbleRpc*>(m_processor_array[processor_type]);
+    if (m_processor_array[protocol_type] != NULL) {
+        return dynamic_cast<PebbleRpc*>(m_processor_array[protocol_type]);
     }
 
     if (!m_rpc_event_handler) {
@@ -496,7 +447,7 @@ PebbleRpc* PebbleServer::GetPebbleRpc(ProcessorType processor_type) {
     }
 
     CodeType rpc_code_type = kCODE_BUTT;
-    switch (processor_type) {
+    switch (protocol_type) {
         case kPEBBLE_RPC_BINARY:
             rpc_code_type = kCODE_BINARY;
             break;
@@ -510,16 +461,34 @@ PebbleRpc* PebbleServer::GetPebbleRpc(ProcessorType processor_type) {
             break;
 
         default:
-            PLOG_FATAL("unsupport processor type %d", processor_type);
+            PLOG_FATAL("unsupport protocol type %d", protocol_type);
             return NULL;
     }
 
     PebbleRpc* rpc_instance = new PebbleRpc(rpc_code_type, m_coroutine_schedule);
     rpc_instance->SetSendFunction(Message::Send, Message::SendV);
     rpc_instance->SetEventHandler(m_rpc_event_handler);
-    m_processor_array[processor_type] = rpc_instance;
+    m_processor_array[protocol_type] = rpc_instance;
 
     return rpc_instance;
+}
+
+PipeProcessor* PebbleServer::GetPipeProcessor(ProtocolType inproc_protocol_type) {
+    IProcessor* processor = m_processor_array[kPEBBLE_PIPE];
+    if (processor != NULL) {
+        return (PipeProcessor*)(processor);
+    }
+    cxx::shared_ptr<ProcessorFactory> factory = GetProcessorFactory(kPEBBLE_PIPE);
+    if (!factory) {
+        PLOG_ERROR("pipe processor factory not installed.");
+        return NULL;
+    }
+    processor = factory->GetProcessor(GetPebbleRpc(inproc_protocol_type));
+    if (processor != NULL) {
+        processor->SetSendFunction(Message::Send, Message::SendV);
+    }
+    m_processor_array[kPEBBLE_PIPE] = processor;
+    return (PipeProcessor*)(processor);
 }
 
 Naming* PebbleServer::GetNaming(NamingType naming_type) {
@@ -593,9 +562,10 @@ int32_t PebbleServer::Update() {
         }
     }
 
-    cxx::unordered_map<int64_t, IProcessor*>::iterator it = m_processor_map.begin();
-    for (; it != m_processor_map.end(); ++it) {
-        num += it->second->Update();
+    for (int32_t i = 0; i < kPROTOCOL_TYPE_BUTT; ++i) {
+        if (m_processor_array[i]) {
+            m_processor_array[i]->Update();
+        }
     }
 
     if (m_timer) {
@@ -891,17 +861,13 @@ void PebbleServer::StatCoroutine(Stat* stat) {
 }
 
 void PebbleServer::StatProcessorResource(Stat* stat) {
-    uint32_t task_num = 0;
     cxx::unordered_map<std::string, int64_t> resource;
     cxx::unordered_map<std::string, int64_t>::iterator it;
 
-    for (int32_t i = 0; i < kPROCESSOR_TYPE_BUTT; ++i) {
+    for (int32_t i = 0; i < kPROTOCOL_TYPE_BUTT; ++i) {
         if (NULL == m_processor_array[i]) {
             continue;
         }
-
-        // 统计任务数，目前内置Processor任务数实际为协程数
-        task_num += m_processor_array[i]->GetUnFinishedTaskNum();
 
         // 统计Processor使用动态资源情况
         resource.clear();
@@ -910,8 +876,6 @@ void PebbleServer::StatProcessorResource(Stat* stat) {
             stat->AddResourceItem(it->first, it->second);
         }
     }
-
-    stat->AddResourceItem("_task", task_num);
 }
 
 SessionMgr* PebbleServer::GetSessionMgr() {

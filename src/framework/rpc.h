@@ -151,11 +151,6 @@ public:
     virtual int32_t OnMessage(int64_t handle, const uint8_t* msg,
         uint32_t msg_len, const MsgExternInfo* msg_info, uint32_t is_overload);
 
-    /// @brief 实现Processor接口，返回并发的任务数
-    virtual uint32_t GetUnFinishedTaskNum() {
-        return m_task_num;
-    }
-
     /// @brief 实现Processor接口，返回动态资源使用情况
     virtual void GetResourceUsed(cxx::unordered_map<std::string, int64_t>* resource_info);
 
@@ -293,7 +288,6 @@ private:
     SequenceTimer* m_timer;
     uint64_t m_session_id;
     cxx::unordered_map< uint64_t, cxx::shared_ptr<RpcSession> > m_session_map;
-    int64_t  m_task_num; // 并发任务数，只包括服务处理
     int64_t  m_latest_handle;
 };
 

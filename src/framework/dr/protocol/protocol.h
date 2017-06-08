@@ -218,7 +218,7 @@ uint32_t skip(Protocol_& prot, TType type) {
       uint32_t result = 0;
       std::string name;
       int16_t fid;
-      TType ftype;
+      TType ftype = T_NULL;
       result += prot.readStructBegin(name);
       while (true) {
         result += prot.readFieldBegin(name, ftype, fid);
@@ -234,9 +234,9 @@ uint32_t skip(Protocol_& prot, TType type) {
   case T_MAP:
     {
       uint32_t result = 0;
-      TType keyType;
-      TType valType;
-      uint32_t i, size;
+      TType keyType = T_NULL;
+      TType valType = T_NULL;
+      uint32_t i = 0, size = 0;
       result += prot.readMapBegin(keyType, valType, size);
       for (i = 0; i < size; i++) {
         result += skip(prot, keyType);
@@ -248,8 +248,8 @@ uint32_t skip(Protocol_& prot, TType type) {
   case T_SET:
     {
       uint32_t result = 0;
-      TType elemType;
-      uint32_t i, size;
+      TType elemType = T_NULL;
+      uint32_t i = 0, size = 0;
       result += prot.readSetBegin(elemType, size);
       for (i = 0; i < size; i++) {
         result += skip(prot, elemType);
@@ -260,8 +260,8 @@ uint32_t skip(Protocol_& prot, TType type) {
   case T_LIST:
     {
       uint32_t result = 0;
-      TType elemType;
-      uint32_t i, size;
+      TType elemType = T_NULL;
+      uint32_t i = 0, size = 0;
       result += prot.readListBegin(elemType, size);
       for (i = 0; i < size; i++) {
         result += skip(prot, elemType);

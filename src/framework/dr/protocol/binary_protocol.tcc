@@ -344,7 +344,7 @@ uint32_t TBinaryProtocolT<Transport_>::readSetEnd() {
 
 template <class Transport_>
 uint32_t TBinaryProtocolT<Transport_>::readBool(bool& value) {
-  uint8_t b[1];
+  uint8_t b[1] = {0};
   this->trans_->readAll(b, 1);
   value = *(int8_t*)b != 0;
   return 1;
@@ -352,7 +352,7 @@ uint32_t TBinaryProtocolT<Transport_>::readBool(bool& value) {
 
 template <class Transport_>
 uint32_t TBinaryProtocolT<Transport_>::readByte(int8_t& byte) {
-  uint8_t b[1];
+  uint8_t b[1] = {0};
   this->trans_->readAll(b, 1);
   byte = *(int8_t*)b;
   return 1;

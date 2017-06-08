@@ -53,7 +53,6 @@ public:
 IRpc::IRpc() {
     m_session_id        = 0;
     m_timer             = new SequenceTimer();
-    m_task_num          = 0;
     m_latest_handle     = -1;
 }
 
@@ -256,7 +255,6 @@ int32_t IRpc::SendResponse(uint64_t session_id, int32_t ret,
         error_code, TimeUtility::GetCurrentMS() - it->second->m_start_time);
 
     m_session_map.erase(it);
-    m_task_num--;
 
     return result;
 }
@@ -302,7 +300,6 @@ int32_t IRpc::OnTimeout(uint64_t session_id) {
     }
 
     if (it->second->m_server_side) {
-        m_task_num--;
         RequestProcComplete(it->second->m_rpc_head.m_function_name,
             kRPC_PROCESS_TIMEOUT, TimeUtility::GetCurrentMS() - it->second->m_start_time);
     } else {
@@ -351,7 +348,6 @@ int32_t IRpc::ProcessRequestImp(int64_t handle, const RpcHead& rpc_head,
     session->m_start_time  = TimeUtility::GetCurrentMS();
 
     m_session_map[session->m_session_id] = session;
-    m_task_num++;
 
     cxx::function<int32_t(int32_t, const uint8_t*, uint32_t)> rsp = cxx::bind( // NOLINT
         &IRpc::SendResponse, this, session->m_session_id,

@@ -49,7 +49,6 @@ cc_binary(
         '#readline',
         ':gen_control',
         '//src/client/:pebble_client',
-        '//src/extension/tbuspp:pebble_tbuspp',
         '//thirdparty/gflags:gflags',
     ],
 )
