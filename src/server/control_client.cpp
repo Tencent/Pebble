@@ -39,6 +39,18 @@
         return -1; \
     }
 
+DEFINE_string(url, "tcp://127.0.0.1:9000",
+    "specify server listen address, support tbuspp,http,tcp and udp:\n"
+    "    tbuspp://appid.control/instanceid\n"
+    "    http://127.0.0.1:8880/appid/control\n"
+    "    tcp://127.0.0.1:9000\n"
+    "    udp://127.0.0.1:9001\n");
+DEFINE_string(execute, "", "execute command and quit.");
+DEFINE_string(options, "", "specify the options of execute command, "
+    "multi options are separated by commas(,) or space.");
+DEFINE_int32(execute_timeout_ms, 1000, "set the timeout time for execution command.");
+
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // 控制命令RPC交互处理类定义
@@ -86,23 +98,24 @@ int32_t ControlClient::Init(const std::string& url, bool batch) {
 
     // 建立连接
     int32_t ret = 0;
-    bool use_address = false;
+    bool use_address = true;
     if (pebble::StringUtility::StartsWith(url, "tbuspp")
         || pebble::StringUtility::StartsWith(url, "http")
         || pebble::StringUtility::StartsWith(url, "tbus")) {
         // tbuspp not opened
         // INSTALL_TBUSPP(ret);
         ret = -1;
-        use_address = true;
     } else if (pebble::StringUtility::StartsWith(url, "tcp")
         || pebble::StringUtility::StartsWith(url, "udp")) {
-        use_address = true;
+        // do nothing.
+    } else {
+        use_address = false;
     }
     _CHECK_RESULT(ret != 0, ret, "INSTALL TBUSPP failed, check the log for detail reason.");
 
     m_pebble_client = new pebble::PebbleClient();
     ret = m_pebble_client->Init();
-    _CHECK_RESULT(ret != 0, ret, "PebbleClient init failed, check the log for detail reason.");
+    _CHECK_RESULT(ret != 0, ret, "Pebble init failed, check the log for detail reason.");
 
     if (use_address) {
         m_stub = m_pebble_client->NewRpcClientByAddress<pebble::_PebbleControlClient>(
@@ -111,14 +124,16 @@ int32_t ControlClient::Init(const std::string& url, bool batch) {
         m_stub = m_pebble_client->NewRpcClientByName<pebble::_PebbleControlClient>(
             url, pebble::kPEBBLE_RPC_JSON);
     }
-    _CHECK_RESULT(m_stub == NULL, -1, "create stub failed, check the log for detail reason.");
+    _CHECK_RESULT(m_stub == NULL, -1, "May connect failed. check the log for detail reason.");
+
+    m_stub->SetTimeout(FLAGS_execute_timeout_ms);
 
     return 0;
 }
 
 int32_t ControlClient::RunCommand(const std::string& cmd, const std::vector<std::string>& args) {
     _CHECK_RESULT(cmd.empty(), -1, "cmd is null");
-    _CHECK_RESULT(m_stub == NULL, -1, "control client not init");
+    _CHECK_RESULT(m_stub == NULL, -1, "Control Client not init");
 
     pebble::ControlRequest req;
     req.command = cmd;
@@ -143,7 +158,7 @@ void ControlClient::CbRunCommand(const std::string& cmd,
 
     int result = ret_code;
     if (result != 0) {
-        std::cout << "RPC Call failed : " << pebble::GetErrorString(result) << std::endl;
+        std::cout << "Operate failed : " << pebble::GetErrorString(result) << std::endl;
     } else {
         result = response.ret_code;
         std::cout << response.data << std::endl << std::endl;
@@ -173,18 +188,6 @@ void* ControlIOThread(void* arg) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-DEFINE_string(url, "tcp://127.0.0.1:9000",
-    "specify server listen address, support tbuspp,http,tcp and udp:\n"
-    "    tbuspp://appid.control/instanceid\n"
-    "    http://127.0.0.1:8880/appid/control\n"
-    "    tcp://127.0.0.1:9000\n"
-    "    udp://127.0.0.1:9001\n");
-DEFINE_string(execute, "", "execute command and quit.");
-DEFINE_string(options, "", "specify the options of execute command, "
-    "multi options are separated by commas(,) or space.");
-
 
 int main(int argc,  char* argv[]) {
     // 预处理options参数，支持空格分隔多参数
@@ -232,7 +235,7 @@ int main(int argc,  char* argv[]) {
     ControlClient client;
     int32_t ret = client.Init(url, batch);
     if (ret != 0) {
-        std::cout << "control client init failed : " << client.GetLastError() << std::endl;
+        std::cout << "Init failed : " << client.GetLastError() << std::endl;
         return -1;
     }
 
@@ -241,7 +244,7 @@ int main(int argc,  char* argv[]) {
         pebble::StringUtility::Split(options, ",", &params_vector);
         ret = client.RunCommand(cmd, params_vector);
         if (ret != 0) {
-            std::cout << "client run cmd failed : "  << client.GetLastError() << std::endl;
+            std::cout << "run cmd failed : "  << client.GetLastError() << std::endl;
             return ret;
         }
         do {
@@ -301,7 +304,7 @@ int main(int argc,  char* argv[]) {
 
             add_history(input.c_str());
             if (ret != 0) {
-                std::cout << "client run cmd failed : "  << client.GetLastError() << std::endl;
+                std::cout << "run cmd failed : "  << client.GetLastError() << std::endl;
             }
         }
         if (ret == 0) {

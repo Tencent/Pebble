@@ -50,10 +50,10 @@ int32_t PackerBuffer::used() {
     return m_buf_pos - m_buf;
 }
 
-cxx::shared_ptr<PackerBuffer> FieldPackGlobal::packer_buffer(new PackerBuffer);
-
-cxx::shared_ptr<pebble::dr::protocol::TBinaryProtocol> FieldPackGlobal::protocol(
-        new pebble::dr::protocol::TBinaryProtocol(packer_buffer));
+FieldPackGlobal::FieldPackGlobal() :
+    packer_buffer(new PackerBuffer),
+    protocol(new pebble::dr::protocol::TBinaryProtocol(packer_buffer)) {
+}
 
 void FieldPackGlobal::reset(uint8_t *buf, uint32_t buf_len) {
     packer_buffer->reset(buf, buf_len);

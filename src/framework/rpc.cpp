@@ -408,8 +408,11 @@ int32_t IRpc::ResponseException(int64_t handle, int32_t ret, const RpcHead& rpc_
 
     RpcException exception;
     exception.m_error_code = ret;
-    if (buff_len > 0) {
+    if (buff_len < sizeof(m_rpc_exception_buff)) {
         exception.m_message.assign((const char*)buff, buff_len);
+    } else {
+        // 业务处理失败，业务数据超长时只返回业务错误码
+        PLOG_ERROR("exception msg too long %u", buff_len);
     }
 
     int32_t result = ExceptionEncode(exception, m_rpc_exception_buff, sizeof(m_rpc_exception_buff));

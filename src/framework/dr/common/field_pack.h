@@ -51,15 +51,26 @@ class PackerBuffer : public pebble::dr::transport::TVirtualTransport<PackerBuffe
 
 // 仅供内部使用
 class FieldPackGlobal {
+    protected:
+        FieldPackGlobal();
+        FieldPackGlobal(const FieldPackGlobal& rhs) {}
     public:
-        static cxx::shared_ptr<pebble::dr::protocol::TBinaryProtocol> protocol;
+        static FieldPackGlobal* Instance() {
+            static FieldPackGlobal s_field_pack_instance;
+            return &s_field_pack_instance;
+        }
+        
+        cxx::shared_ptr<pebble::dr::protocol::TBinaryProtocol> Protocol() {
+            return protocol;
+        }
 
-        static void reset(uint8_t *buf, uint32_t buf_len);
+        void reset(uint8_t *buf, uint32_t buf_len);
 
-        static int32_t used();
+        int32_t used();
 
     private:
-        static cxx::shared_ptr<PackerBuffer> packer_buffer;
+        cxx::shared_ptr<PackerBuffer> packer_buffer;
+        cxx::shared_ptr<pebble::dr::protocol::TBinaryProtocol> protocol;
 };
 
 } // namespace internal

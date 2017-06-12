@@ -70,6 +70,7 @@ public:
     }
 };
 
+class IProcessor;
 
 /// @brief 消息相关信息，message收到消息后除了递交消息本身到业务模块外，还需提供消息附属信息
 ///     这个附属信息在上层各业务模块间流动，业务模块按需使用这些信息
@@ -92,7 +93,7 @@ struct MsgExternInfo {
     // int64_t         _channel;
     int64_t         _msg_arrived_ms;    // 消息到达时间
 
-    void*           _src;               // 消息源，由消息分发模块填写，方便消息在各模块间往返
+    IProcessor*     _src;               // 消息源，由消息分发Processor填写，方便消息在各Processor间传递
 };
 
 /// @brief 网络驱动接口

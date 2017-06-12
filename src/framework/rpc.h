@@ -202,7 +202,7 @@ public:
 
 public:
     // TODO: 改成可配置
-    static const int32_t REQ_PROC_TIMEOUT_MS = 60 * 1000; // 60s
+    static const int32_t REQ_PROC_TIMEOUT_MS = 20 * 1000; // 20s
 
     /// @note 内部使用，用户无需关注
     int32_t ProcessRequestImp(int64_t handle, const RpcHead& rpc_head,

@@ -1907,7 +1907,7 @@ void t_cpp_generator::generate_struct_reflection_info(std::ofstream& out, t_stru
       out << indent() << "if (obj == NULL || buff == NULL) return pebble::dr::reflection::kINVALIDPARAMETER;" << endl;
       out << indent() << "try {" << endl;
       indent_up();
-      out << indent() << "pebble::dr::internal::FieldPackGlobal::reset(buff, buff_len);" << endl;
+      out << indent() << "pebble::dr::internal::FieldPackGlobal::Instance()->reset(buff, buff_len);" << endl;
       out << indent() << tstruct->get_name() << " *pstruct = static_cast<" << tstruct->get_name() << "*>(obj);" << endl;
       out << indent() << "if (pstruct == NULL) return pebble::dr::reflection::kINVALIDOBJECT;" << endl;
       out << indent() << "uint32_t xfer = 0;" << endl << endl;
@@ -1915,12 +1915,12 @@ void t_cpp_generator::generate_struct_reflection_info(std::ofstream& out, t_stru
           out << endl << indent() << "if (pstruct->__isset." << (*m_iter)->get_name() << ") {" << endl;
           indent_up();
       }
-      generate_serialize_field(out, *m_iter, "pebble::dr::internal::FieldPackGlobal::protocol.get()", "pstruct->");
+      generate_serialize_field(out, *m_iter, "pebble::dr::internal::FieldPackGlobal::Instance()->Protocol().get()", "pstruct->");
       if (check_if_set) {
           indent_down();
           out << indent() << "}" << endl;
       }
-      out << indent() << "return pebble::dr::internal::FieldPackGlobal::used();" << endl;
+      out << indent() << "return pebble::dr::internal::FieldPackGlobal::Instance()->used();" << endl;
       indent_down();
       out << indent() << "} catch (pebble::dr::internal::ArrayOutOfBoundsException) {" << endl;
       out << indent(1) << "return pebble::dr::reflection::kINSUFFICIENTBUFFER;" << endl;
@@ -1936,15 +1936,15 @@ void t_cpp_generator::generate_struct_reflection_info(std::ofstream& out, t_stru
       out << indent() << "if (obj == NULL || buff == NULL) return pebble::dr::reflection::kINVALIDPARAMETER;" << endl;
       out << indent() << "try {" << endl;
       indent_up();
-      out << indent() << "pebble::dr::internal::FieldPackGlobal::reset(buff, buff_len);" << endl;
+      out << indent() << "pebble::dr::internal::FieldPackGlobal::Instance()->reset(buff, buff_len);" << endl;
       out << indent() << tstruct->get_name() << " *pstruct = static_cast<" << tstruct->get_name() << "*>(obj);" << endl;
       out << indent() << "if (pstruct == NULL) return pebble::dr::reflection::kINVALIDOBJECT;" << endl;
       out << indent() << "uint32_t xfer = 0;" << endl << endl;
-      generate_deserialize_field(out, *m_iter, "pebble::dr::internal::FieldPackGlobal::protocol.get()", "pstruct->");
+      generate_deserialize_field(out, *m_iter, "pebble::dr::internal::FieldPackGlobal::Instance()->Protocol().get()", "pstruct->");
       if ((*m_iter)->get_req() != t_field::T_REQUIRED) {
           out << indent() << "pstruct->__isset." << (*m_iter)->get_name() << " = true;" << endl;
       }
-      out << indent() << "return pebble::dr::internal::FieldPackGlobal::used();" << endl;
+      out << indent() << "return pebble::dr::internal::FieldPackGlobal::Instance()->used();" << endl;
       indent_down();
       out << indent() << "} catch (pebble::dr::internal::ArrayOutOfBoundsException) {" << endl;
       out << indent(1) << "return pebble::dr::reflection::kINVALIDBUFFER;" << endl;
@@ -2740,7 +2740,7 @@ void t_cpp_generator::generate_service_client(t_service* tservice, string style)
   indent_down();
 
   if (tservice->get_extends() == NULL) {
-    f_service_h_ << endl << "protected:" << endl;
+    f_service_h_ << endl << "public:" << endl;
     f_service_h_ << indent(1) << "int64_t GetHandle();" << endl;
     f_service_h_ << endl << "protected:" << endl;
     f_service_h_ << indent(1) << "::pebble::PebbleRpc* m_client;" << endl;
