@@ -129,7 +129,7 @@ class TraverseContext {
 
     virtual ~TraverseContext() {}
 
-    virtual const Value &next() = 0;
+    virtual const RawValue &next() = 0;
 
     virtual bool has_more() = 0;
 };
@@ -137,11 +137,11 @@ class TraverseContext {
 
 class ObjectTraverseContext : public TraverseContext {
   public:
-    ObjectTraverseContext(Value::ConstMemberIterator itr, Value::ConstMemberIterator end) : itr_(itr), end_(end), value_(false) {}
-    ObjectTraverseContext(const Value &v) : itr_(v.MemberBegin()), end_(v.MemberEnd()), value_(false) {}
+    ObjectTraverseContext(RawValue::ConstMemberIterator itr, RawValue::ConstMemberIterator end) : itr_(itr), end_(end), value_(false) {}
+    ObjectTraverseContext(const RawValue &v) : itr_(v.MemberBegin()), end_(v.MemberEnd()), value_(false) {}
 
-    const Value &next() {
-      const Value & ret = value_ ? itr_++->value : itr_->name;
+    const RawValue &next() {
+      const RawValue & ret = value_ ? itr_++->value : itr_->name;
       value_ = !value_;
       return ret;
     }
@@ -151,9 +151,9 @@ class ObjectTraverseContext : public TraverseContext {
     }
 
   private:
-    Value::ConstMemberIterator itr_;
+    RawValue::ConstMemberIterator itr_;
 
-    Value::ConstMemberIterator end_;
+    RawValue::ConstMemberIterator end_;
 
     bool value_;
 };
@@ -161,10 +161,10 @@ class ObjectTraverseContext : public TraverseContext {
 
 class ArrayTraverseContext : public TraverseContext {
   public:
-    ArrayTraverseContext(Value::ConstValueIterator itr, Value::ConstValueIterator end) : itr_(itr), end_(end) {}
-    ArrayTraverseContext(const Value &v) : itr_(v.Begin()), end_(v.End()) {}
+    ArrayTraverseContext(RawValue::ConstValueIterator itr, RawValue::ConstValueIterator end) : itr_(itr), end_(end) {}
+    ArrayTraverseContext(const RawValue &v) : itr_(v.Begin()), end_(v.End()) {}
 
-    const Value &next() {
+    const RawValue &next() {
       return *(itr_++);
     }
 
@@ -173,16 +173,16 @@ class ArrayTraverseContext : public TraverseContext {
     }
 
   private:
-    Value::ConstValueIterator itr_;
+    RawValue::ConstValueIterator itr_;
 
-    Value::ConstValueIterator end_;
+    RawValue::ConstValueIterator end_;
 };
 
 class ValueTraverseContext : public TraverseContext {
   public:
-    ValueTraverseContext(const Value &value) : value_(value), consumed_(false) {}
+    ValueTraverseContext(const RawValue &value) : value_(value), consumed_(false) {}
 
-    const Value &next() {
+    const RawValue &next() {
       consumed_ = true;
       return value_;
     }
@@ -192,7 +192,7 @@ class ValueTraverseContext : public TraverseContext {
     }
 
   private:
-    const Value &value_;
+    const RawValue &value_;
 
     bool consumed_;
 };
@@ -346,7 +346,7 @@ uint32_t TRAPIDJSONProtocol::writeBinary(const std::string& str) {
   return write_to_transport();
 }
 
-inline const Value &TRAPIDJSONProtocol::get_value(uint32_t &readed, bool no_parse) {
+inline const RawValue &TRAPIDJSONProtocol::get_value(uint32_t &readed, bool no_parse) {
   if (contexts_stack_.size() > 0) {
     if (contexts_stack_.top()->has_more()) {
       readed = 0;
@@ -374,14 +374,14 @@ uint32_t TRAPIDJSONProtocol::readMessageBegin(std::string& name,
   }
 
   uint32_t readed = 0;
-  const Value &root = get_value(readed);
+  const RawValue &root = get_value(readed);
 
   if (!root.IsArray()) {
     throw TProtocolException(TProtocolException::INVALID_DATA,
       "Expected Array for a message.");
   }
 
-  Value::ConstValueIterator itr = root.Begin();
+  RawValue::ConstValueIterator itr = root.Begin();
 
   if (!(*itr).IsUint() || (*itr).GetUint() != kThriftVersion1) {
     throw TProtocolException(TProtocolException::BAD_VERSION,
@@ -427,7 +427,7 @@ uint32_t TRAPIDJSONProtocol::readMessageEnd() {
 
 uint32_t TRAPIDJSONProtocol::readStructBegin(std::string& name) {
   uint32_t readed = 0;
-  const Value &obj = get_value(readed);
+  const RawValue &obj = get_value(readed);
   if (!obj.IsObject()) {
     throw TProtocolException(TProtocolException::INVALID_DATA,
       "Expected Object for a struct.");
@@ -450,7 +450,7 @@ uint32_t TRAPIDJSONProtocol::readFieldBegin(std::string& name,
   if (!contexts_stack_.top()->has_more()) {
     fieldType = pebble::dr::protocol::T_STOP;
   } else {
-    const Value &field_name = get_value(readed, true);
+    const RawValue &field_name = get_value(readed, true);
     result += readed;
     if (!field_name.IsString()) {
       throw TProtocolException(TProtocolException::INVALID_DATA,
@@ -472,7 +472,7 @@ uint32_t TRAPIDJSONProtocol::readMapBegin(TType& keyType,
                                      uint32_t& size) {
   uint32_t result = 0;
 
-  const Value& map = get_value(result);
+  const RawValue& map = get_value(result);
   if (!map.IsArray()) {
     throw TProtocolException(TProtocolException::INVALID_DATA,
       "Expected Array for map.");
@@ -492,7 +492,7 @@ uint32_t TRAPIDJSONProtocol::readMapEnd() {
 uint32_t TRAPIDJSONProtocol::readListBegin(TType& elemType,
                                       uint32_t& size) {
   uint32_t result = 0;
-  const Value &list = get_value(result);
+  const RawValue &list = get_value(result);
   if (!list.IsArray()) {
     throw TProtocolException(TProtocolException::INVALID_DATA,
       "invalid list format.");
@@ -523,7 +523,7 @@ uint32_t TRAPIDJSONProtocol::readSetEnd() {
 
 uint32_t TRAPIDJSONProtocol::readBool(bool& value) {
   uint32_t readed = 0;
-  const Value &data = get_value(readed);
+  const RawValue &data = get_value(readed);
   if (!data.IsBool()) {
     throw TProtocolException(TProtocolException::INVALID_DATA,
       "Expected Bool.");
@@ -536,7 +536,7 @@ uint32_t TRAPIDJSONProtocol::readBool(bool& value) {
 // as a text type instead of an integer type
 uint32_t TRAPIDJSONProtocol::readByte(int8_t& byte) {
   uint32_t readed = 0;
-  const Value &data = get_value(readed);
+  const RawValue &data = get_value(readed);
   if (!data.IsInt()) {
     throw TProtocolException(TProtocolException::INVALID_DATA,
       "Expected Int.");
@@ -547,7 +547,7 @@ uint32_t TRAPIDJSONProtocol::readByte(int8_t& byte) {
 
 uint32_t TRAPIDJSONProtocol::readI16(int16_t& i16) {
   uint32_t readed = 0;
-  const Value &data = get_value(readed);
+  const RawValue &data = get_value(readed);
   if (!data.IsInt()) {
     throw TProtocolException(TProtocolException::INVALID_DATA,
       "Expected Int.");
@@ -558,7 +558,7 @@ uint32_t TRAPIDJSONProtocol::readI16(int16_t& i16) {
 
 uint32_t TRAPIDJSONProtocol::readI32(int32_t& i32) {
   uint32_t readed = 0;
-  const Value &data = get_value(readed);
+  const RawValue &data = get_value(readed);
   if (!data.IsInt()) {
     throw TProtocolException(TProtocolException::INVALID_DATA,
       "Expected Int.");
@@ -569,7 +569,7 @@ uint32_t TRAPIDJSONProtocol::readI32(int32_t& i32) {
 
 uint32_t TRAPIDJSONProtocol::readI64(int64_t& i64) {
   uint32_t readed = 0;
-  const Value &data = get_value(readed);
+  const RawValue &data = get_value(readed);
   if (!data.IsInt64()) {
     throw TProtocolException(TProtocolException::INVALID_DATA,
       "Expected Int64.");
@@ -580,7 +580,7 @@ uint32_t TRAPIDJSONProtocol::readI64(int64_t& i64) {
 
 uint32_t TRAPIDJSONProtocol::readDouble(double& dub) {
   uint32_t readed = 0;
-  const Value &data = get_value(readed);
+  const RawValue &data = get_value(readed);
   if (!data.IsDouble()) {
     throw TProtocolException(TProtocolException::INVALID_DATA,
       "Expected Double.");
@@ -591,7 +591,7 @@ uint32_t TRAPIDJSONProtocol::readDouble(double& dub) {
 
 uint32_t TRAPIDJSONProtocol::readString(std::string &str) {
   uint32_t readed = 0;
-  const Value &data = get_value(readed);
+  const RawValue &data = get_value(readed);
   if (!data.IsString()) {
     throw TProtocolException(TProtocolException::INVALID_DATA,
       "Expected String.");
@@ -602,7 +602,7 @@ uint32_t TRAPIDJSONProtocol::readString(std::string &str) {
 
 uint32_t TRAPIDJSONProtocol::readBinary(std::string &str) {
   uint32_t result = 0;
-  const Value &tmp = get_value(result);
+  const RawValue &tmp = get_value(result);
   if (!tmp.IsString()) {
     throw TProtocolException(TProtocolException::INVALID_DATA,
       "Expected String.");

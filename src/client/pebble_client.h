@@ -145,10 +145,9 @@ public:
 
     /// @brief 创建一个协程，并决定是否立即执行
     /// @param routine 协程执行入口函数
-    /// @param start_immediately 默认立即执行，设置为false时等下一次update时执行
     /// @return 0 成功
     /// @return <0 失败
-    int32_t MakeCoroutine(const cxx::function<void()>& routine, bool start_immediately = true);
+    int32_t MakeCoroutine(const cxx::function<void()>& routine);
 
 private:
     int32_t ProcessMessage();

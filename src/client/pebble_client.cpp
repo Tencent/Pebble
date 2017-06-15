@@ -418,7 +418,7 @@ Stat* PebbleClient::GetStat() {
     return NULL;
 }
 
-int32_t PebbleClient::MakeCoroutine(const cxx::function<void()>& routine, bool start_immediately) {
+int32_t PebbleClient::MakeCoroutine(const cxx::function<void()>& routine) {
     if (!m_coroutine_schedule) {
         PLOG_ERROR("coroutine schedule is null");
         return -1;
@@ -436,7 +436,7 @@ int32_t PebbleClient::MakeCoroutine(const cxx::function<void()>& routine, bool s
     }
 
     task->Init(routine);
-    int64_t coid = task->Start(start_immediately);
+    int64_t coid = task->Start(true);
 
     return coid < 0 ? -1 : 0;
 }

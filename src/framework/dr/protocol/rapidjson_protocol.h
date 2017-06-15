@@ -15,15 +15,20 @@
 #define PEBBLE_DR_PROTOCOL_RAPIDJSONPROTOCOL_H
 
 #include "framework/dr/protocol/virtual_protocol.h"
+#define RAPIDJSON_ASSERT(x) if (x) {}
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/document.h"
+
 
 #include <stack>
 
 namespace pebble { namespace dr { namespace protocol {
 
 class TraverseContext;
+
+typedef rapidjson::GenericValue<rapidjson::ASCII<> > RawValue;
+
 
 struct LookaheadStream {
     typedef uint8_t Ch;
@@ -231,7 +236,7 @@ class TRAPIDJSONProtocol : public TVirtualProtocol<TRAPIDJSONProtocol> {
 
   rapidjson::Writer<rapidjson::StringBuffer> writer_;
 
-  rapidjson::Document document_;
+  rapidjson::GenericDocument<rapidjson::ASCII<> > document_;
 
   LookaheadStream lookahead_;
 
@@ -245,7 +250,7 @@ class TRAPIDJSONProtocol : public TVirtualProtocol<TRAPIDJSONProtocol> {
     return sb_size;
   }
 
-  inline const rapidjson::Value &get_value(uint32_t &len, bool no_parse = false);
+  inline const RawValue &get_value(uint32_t &len, bool no_parse = false);
 };
 
 /**
