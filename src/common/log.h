@@ -115,6 +115,18 @@ public:
     /// @brief flush，由用户决定flush时机
     void Flush();
 
+public:
+    /// @brief 设置当前时间，应该在上层框架主循环中不断的调用，以及时刷新时间
+    void SetCurrentTime(int64_t timestamp);
+
+    /// @brief 返回当前时间戳
+    int64_t GetCurrentTime();
+
+    /// @brief 返回当前设置的打印级别
+    int32_t GetPriority() {
+        return m_log_priority;
+    }
+
 private:
     enum LogType {
         kLOG_LOG = 0,
@@ -126,6 +138,9 @@ private:
     LOG_PRIORITY    m_log_priority;
     RollUtil*       m_log_array[kLOG_BUTT];
     LogWriteFunc    m_log_write_func;
+
+    bool            m_isset_time;
+    int64_t         m_current_time;
 };
 
 } // namespace pebble
@@ -152,6 +167,39 @@ private:
 #define RETURN_IF_INFO(condition, ret, fmt,  ...) if (condition) { PLOG_INFO(fmt,  ##__VA_ARGS__); return (ret); }
 #define RETURN_IF_DEBUG(condition, ret, fmt, ...) if (condition) { PLOG_DEBUG(fmt, ##__VA_ARGS__); return (ret); }
 #define RETURN_IF_TRACE(condition, ret, fmt, ...) if (condition) { PLOG_TRACE(fmt, ##__VA_ARGS__); return (ret); }
+
+// 频率控制
+#define LOG_VARNAME(prefix, line) LOG_VARNAME_CONCAT(prefix, line)
+#define LOG_VARNAME_CONCAT(prefix, line) prefix ## line
+
+#define LOG_CNT_VAR     LOG_VARNAME(s_log_cnt_, __LINE__)
+#define START_TIME_VAR  LOG_VARNAME(s_start_time_ ,__LINE__)
+#define NOW_TIME_VAR    LOG_VARNAME(s_now_time_ ,__LINE__)
+
+#define PLOG_N_EVERY_SECOND(num, pri, fmt, args...) \
+    do { \
+        if (pri >= pebble::Log::Instance().GetPriority()) { \
+            static int32_t LOG_CNT_VAR = 0; static int64_t START_TIME_VAR = 0; \
+            if (START_TIME_VAR == 0) { START_TIME_VAR = pebble::Log::Instance().GetCurrentTime(); } \
+            int64_t NOW_TIME_VAR = pebble::Log::Instance().GetCurrentTime(); \
+            if (START_TIME_VAR + 1000000 < NOW_TIME_VAR) { \
+                START_TIME_VAR = NOW_TIME_VAR; \
+                if (LOG_CNT_VAR > num) { \
+                    PLOG_INFO("discard %d logs last second", LOG_CNT_VAR - num); \
+                } \
+                LOG_CNT_VAR = 0; \
+            } \
+            if (++LOG_CNT_VAR <= num) { \
+                pebble::Log::Instance().Write(pri, __FILE__, __LINE__, __FUNCTION__, fmt, ##args); \
+            } \
+        } \
+    } while (0)
+
+#define PLOG_FATAL_N_EVERY_SECOND(num, fmt, args...) PLOG_N_EVERY_SECOND(num, pebble::LOG_PRIORITY_FATAL, fmt, ##args)
+#define PLOG_ERROR_N_EVERY_SECOND(num, fmt, args...) PLOG_N_EVERY_SECOND(num, pebble::LOG_PRIORITY_ERROR, fmt, ##args)
+#define PLOG_INFO_N_EVERY_SECOND(num, fmt,  args...) PLOG_N_EVERY_SECOND(num, pebble::LOG_PRIORITY_INFO, fmt, ##args)
+#define PLOG_DEBUG_N_EVERY_SECOND(num, fmt, args...) PLOG_N_EVERY_SECOND(num, pebble::LOG_PRIORITY_DEBUG, fmt, ##args)
+#define PLOG_TRACE_N_EVERY_SECOND(num, fmt, args...) PLOG_N_EVERY_SECOND(num, pebble::LOG_PRIORITY_TRACE, fmt, ##args)
 
 #endif // _PEBBLE_COMMON_LOG_H_
 

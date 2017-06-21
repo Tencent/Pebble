@@ -263,6 +263,51 @@ bool StringUtility::StripPrefix(std::string* str, const std::string& prefix) {
     return false;
 }
 
+bool StringUtility::Hex2Bin(const char* hex_str, std::string* bin_str)
+{
+    if (NULL == hex_str || NULL == bin_str) {
+        return false;
+    }
+    bin_str->clear();
+    while (*hex_str != '\0') {
+        if (hex_str[1] == '\0') {
+            return false;
+        }
+        uint8_t high = static_cast<uint8_t>(hex_str[0]);
+        uint8_t low = static_cast<uint8_t>(hex_str[1]);
+#define ASCII2DEC(c) \
+    if (c >= '0' && c <= '9') c -= '0'; \
+        else if (c >= 'A' && c <= 'F') c -= ('A' - 10); \
+        else if (c >= 'a' && c <= 'f') c -= ('a' - 10); \
+        else return false
+        ASCII2DEC(high);
+        ASCII2DEC(low);
+        bin_str->append(1, static_cast<char>((high << 4) + low));
+        hex_str += 2;
+    }
+    return true;
+}
+
+bool StringUtility::Bin2Hex(const char* bin_str, std::string* hex_str)
+{
+    if (NULL == bin_str || NULL == hex_str) {
+        return false;
+    }
+    hex_str->clear();
+    while (*bin_str != '\0') {
+        uint8_t high = (static_cast<uint8_t>(*bin_str) >> 4);
+        uint8_t low = (static_cast<uint8_t>(*bin_str) & 0xF);
+#define DEC2ASCII(c) \
+    if (c <= 9) c += '0'; \
+    else c += ('A' - 10)
+        DEC2ASCII(high);
+        DEC2ASCII(low);
+        hex_str->append(1, static_cast<char>(high));
+        hex_str->append(1, static_cast<char>(low));
+        bin_str += 1;
+    }
+    return true;
+}
 
 } // namespace pebble
 

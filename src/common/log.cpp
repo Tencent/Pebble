@@ -148,6 +148,9 @@ Log::Log() {
     m_log_array[kLOG_LOG]   = new RollUtil("./log", self_name + ".log");
     m_log_array[kLOG_ERROR] = new RollUtil("./log", self_name + ".error");
     m_log_array[kLOG_STAT]  = new RollUtil("./log", self_name + ".stat");
+
+    m_isset_time    = false;
+    m_current_time  = TimeUtility::GetCurrentUS();
 }
 
 Log::Log(const Log& rhs) {
@@ -361,6 +364,17 @@ void Log::SetFilePath(const std::string& file_path)
     Close();
 }
 
+void Log::SetCurrentTime(int64_t timestamp) {
+    m_current_time  = timestamp;
+    m_isset_time    = true;
+}
+
+int64_t Log::GetCurrentTime() {
+    if (m_isset_time) {
+        return m_current_time;
+    }
+    return TimeUtility::GetCurrentUS();
+}
 
 } // namespace pebble
 

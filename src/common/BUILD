@@ -22,6 +22,9 @@ cc_library(
         'time_utility.cpp',
         'random.cpp',
     ],
+    extra_cppflags = [
+        '--std=c++0x',
+    ],
     incs = [
     ],
     deps = [

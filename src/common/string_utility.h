@@ -56,6 +56,11 @@ public:
     static bool StripSuffix(std::string* str, const std::string& suffix);
 
     static bool StripPrefix(std::string* str, const std::string& prefix);
+
+    // bin和hex转换
+    static bool Hex2Bin(const char* hex_str, std::string* bin_str);
+
+    static bool Bin2Hex(const char* bin_str, std::string* hex_str);
 };
 
 } // namespace pebble
