@@ -11,6 +11,7 @@
  *
  */
 
+#include <malloc.h>
 #include <sstream>
 #include <time.h>
 
@@ -128,7 +129,20 @@ void StatManager::WriteLog() {
 
     int32_t len = 0;
 
-    len += snprintf(buff + len, BUFF_LEN - len, "Pebble Resource Stat(cycle = 1s)\n");
+    struct mallinfo meminfo = mallinfo();
+    len += snprintf(buff + len, BUFF_LEN - len, "Pebble Resource Stat(cycle = 1s)\n"
+        "\tmallocinfo{arena:%d,ordblks:%d,smblks:%d,hblks:%d,hblkhd:%d,usmblks:%d,fsmblks:%d,"
+        "uordblks:%d,fordblks:%d,keepcost:%d}\n",
+        meminfo.arena,
+        meminfo.ordblks,
+        meminfo.smblks,
+        meminfo.hblks,
+        meminfo.hblkhd,
+        meminfo.usmblks,
+        meminfo.fsmblks,
+        meminfo.uordblks,
+        meminfo.fordblks,
+        meminfo.keepcost);
 
     const ResourceStatResult* resource_result = m_stat->GetAllResourceResults();
     cxx::unordered_map<std::string, ResourceStatItem>::const_iterator it1 = resource_result->begin();

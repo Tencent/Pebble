@@ -160,6 +160,9 @@ Log::Log(const Log& rhs) {
     for (int i = 0; i < kLOG_BUTT; i++) {
         m_log_array[i] = NULL;
     }
+
+    m_isset_time    = false;
+    m_current_time  = 0;
 }
 
 Log::~Log() {

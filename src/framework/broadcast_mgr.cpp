@@ -257,7 +257,7 @@ int32_t BroadcastMgr::SendV(const std::string& channel, uint32_t msg_frag_num,
     const uint8_t* msg_frag[], uint32_t msg_frag_len[], bool relay) {
     const SubscriberList* subscribers = m_channel_mgr->GetSubscriberList(channel);
     if (NULL == subscribers) {
-        PLOG_ERROR("channel %s not exist", channel.c_str());
+        PLOG_ERROR_N_EVERY_SECOND(1, "channel %s not exist", channel.c_str());
         return kCHANNEL_NOT_EXIST;
     }
 
@@ -290,7 +290,7 @@ int32_t BroadcastMgr::RelayV(const std::string& channel, uint32_t msg_frag_num,
     cxx::unordered_map<std::string, std::vector<Address> >::iterator it =
         m_relay_connection_map.find(channel);
     if (m_relay_connection_map.end() == it) {
-        PLOG_ERROR("channel %s not in relay connection map", channel.c_str());
+        PLOG_ERROR_N_EVERY_SECOND(1, "channel %s not in relay connection map", channel.c_str());
         return 0;
     }
 

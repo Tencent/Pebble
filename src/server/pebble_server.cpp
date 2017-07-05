@@ -547,7 +547,9 @@ int32_t PebbleServer::Stop() {
 int32_t PebbleServer::Update() {
     int32_t num = 0;
 
-    int64_t old = TimeUtility::GetCurrentMS();
+    int64_t old = TimeUtility::GetCurrentUS();
+
+    Log::Instance().SetCurrentTime(old);
 
     for (uint32_t i = 0; i < m_options._max_msg_num_per_loop; ++i) {
         if (ProcessMessage() <= 0) {
@@ -586,7 +588,7 @@ int32_t PebbleServer::Update() {
 
     if (m_stat_manager) {
         num += m_stat_manager->Update();
-        m_stat_manager->GetStat()->AddResourceItem("_loop", TimeUtility::GetCurrentMS() - old);
+        m_stat_manager->GetStat()->AddResourceItem("_loop", (TimeUtility::GetCurrentUS() - old) / 1000);
     }
 
     return num;
@@ -655,14 +657,14 @@ int32_t PebbleServer::ProcessMessage() {
             break;
         }
         if (ret != 0) {
-            PLOG_ERROR("peek failed(%d:%s)", ret, Message::GetLastError());
+            PLOG_ERROR_N_EVERY_SECOND(1, "peek failed(%d:%s)", ret, Message::GetLastError());
             break;
         }
 
         cxx::unordered_map<int64_t, IProcessor*>::iterator it = m_processor_map.find(msg_info._self_handle);
         if (m_processor_map.end() == it) {
             Message::Pop(handle);
-            PLOG_ERROR("handle(%ld) not attach a processor remote(%ld)", msg_info._self_handle, msg_info._remote_handle);
+            PLOG_ERROR_N_EVERY_SECOND(1, "handle(%ld) not attach a processor remote(%ld)", msg_info._self_handle, msg_info._remote_handle);
             break;
         }
 

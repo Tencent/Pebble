@@ -76,7 +76,7 @@ int32_t IRpc::OnMessage(int64_t handle, const uint8_t* msg,
     uint32_t msg_len, const MsgExternInfo* msg_info, uint32_t is_overload) {
 
     if (NULL == msg || 0 == msg_len) {
-        PLOG_ERROR("param invalid: buff = %p, buff_len = %u", msg, msg_len);
+        PLOG_ERROR_N_EVERY_SECOND(1, "param invalid: buff = %p, buff_len = %u", msg, msg_len);
         return kRPC_INVALID_PARAM;
     }
 
@@ -84,12 +84,12 @@ int32_t IRpc::OnMessage(int64_t handle, const uint8_t* msg,
 
     int32_t head_len = HeadDecode(msg, msg_len, &head);
     if (head_len < 0) {
-        PLOG_ERROR("HeadDecode failed(%d).", head_len);
+        PLOG_ERROR_N_EVERY_SECOND(1, "HeadDecode failed(%d).", head_len);
         return kRPC_DECODE_FAILED;
     }
 
     if (head_len > static_cast<int32_t>(msg_len)) {
-        PLOG_ERROR("head_len(%d) > buff_len(%u)", head_len, msg_len);
+        PLOG_ERROR_N_EVERY_SECOND(1, "head_len(%d) > buff_len(%u)", head_len, msg_len);
         return kRPC_DECODE_FAILED;
     }
 
@@ -118,7 +118,7 @@ int32_t IRpc::OnMessage(int64_t handle, const uint8_t* msg,
             break;
 
         default:
-            PLOG_ERROR("rpc msg type error(%d)", head.m_message_type);
+            PLOG_ERROR_N_EVERY_SECOND(1, "rpc msg type error(%d)", head.m_message_type);
             break;
     }
 
@@ -165,7 +165,7 @@ int32_t IRpc::SendRequest(int64_t handle,
                     int32_t timeout_ms) {
     // buff允许为空，长度非0时做非空检查
     if (buff_len != 0 && NULL == buff) {
-        PLOG_ERROR("param invalid: buff = %p, buff_len = %u", buff, buff_len);
+        PLOG_ERROR_N_EVERY_SECOND(1, "param invalid: buff = %p, buff_len = %u", buff, buff_len);
         return kRPC_INVALID_PARAM;
     }
 
@@ -208,14 +208,14 @@ int32_t IRpc::BroadcastRequest(const std::string& name,
                     uint32_t buff_len) {
     // buff允许为空，长度非0时做非空检查
     if (buff_len != 0 && NULL == buff) {
-        PLOG_ERROR("param invalid: buff = %p, buff_len = %u", buff, buff_len);
+        PLOG_ERROR_N_EVERY_SECOND(1, "param invalid: buff = %p, buff_len = %u", buff, buff_len);
         return kRPC_INVALID_PARAM;
     }
 
     // 发送请求
     int32_t head_len = HeadEncode(rpc_head, m_rpc_head_buff, sizeof(m_rpc_head_buff));
     if (head_len < 0) {
-        PLOG_ERROR("encode head failed(%d)", head_len);
+        PLOG_ERROR_N_EVERY_SECOND(1, "encode head failed(%d)", head_len);
         return kRPC_ENCODE_FAILED;
     }
 
@@ -263,7 +263,7 @@ int32_t IRpc::SendMessage(int64_t handle, const RpcHead& rpc_head,
     const uint8_t* buff, uint32_t buff_len) {
     int32_t head_len = HeadEncode(rpc_head, m_rpc_head_buff, sizeof(m_rpc_head_buff));
     if (head_len < 0) {
-        PLOG_ERROR("encode head failed(%d)", head_len);
+        PLOG_ERROR_N_EVERY_SECOND(1, "encode head failed(%d)", head_len);
         return kRPC_ENCODE_FAILED;
     }
 
@@ -279,7 +279,7 @@ int32_t IRpc::SendMessage(int64_t handle, const RpcHead& rpc_head,
     }
 
     if (send_ret != 0) {
-        PLOG_ERROR("send failed %d", send_ret);
+        PLOG_ERROR_N_EVERY_SECOND(1, "send failed %d", send_ret);
     }
 
     return send_ret;
@@ -323,7 +323,7 @@ int32_t IRpc::ProcessRequestImp(int64_t handle, const RpcHead& rpc_head,
     cxx::unordered_map<std::string, OnRpcRequest>::iterator it =
         m_service_map.find(rpc_head.m_function_name);
     if (m_service_map.end() == it) {
-        PLOG_ERROR("%s's request proc func not found", rpc_head.m_function_name.c_str());
+        PLOG_ERROR_N_EVERY_SECOND(1, "%s's request proc func not found", rpc_head.m_function_name.c_str());
         ResponseException(handle, kRPC_UNSUPPORT_FUNCTION_NAME, rpc_head);
         RequestProcComplete(rpc_head.m_function_name, kRPC_UNSUPPORT_FUNCTION_NAME, 0);
         return kRPC_UNSUPPORT_FUNCTION_NAME;
@@ -362,7 +362,7 @@ int32_t IRpc::ProcessResponse(const RpcHead& rpc_head,
     cxx::unordered_map< uint64_t, cxx::shared_ptr<RpcSession> >::iterator it =
         m_session_map.find(rpc_head.m_session_id);
     if (m_session_map.end() == it) {
-        PLOG_ERROR("session(%lu) not found, function_name(%s)",
+        PLOG_ERROR_N_EVERY_SECOND(1, "session(%lu) not found, function_name(%s)",
                         rpc_head.m_session_id, rpc_head.m_function_name.c_str());
         return kRPC_SESSION_NOT_FOUND;
     }
@@ -377,7 +377,7 @@ int32_t IRpc::ProcessResponse(const RpcHead& rpc_head,
     if (kRPC_EXCEPTION == rpc_head.m_message_type) {
         int32_t len = ExceptionDecode(buff, buff_len, &exception);
         if (len < 0) {
-            PLOG_ERROR("ExceptionDecode failed(%d), exception data len = %u", len, buff_len);
+            PLOG_ERROR_N_EVERY_SECOND(1, "ExceptionDecode failed(%d), exception data len = %u", len, buff_len);
             ret = kRPC_RECV_EXCEPTION_MSG;
             real_buff = NULL;
             real_buff_len = 0;
@@ -412,12 +412,12 @@ int32_t IRpc::ResponseException(int64_t handle, int32_t ret, const RpcHead& rpc_
         exception.m_message.assign((const char*)buff, buff_len);
     } else {
         // 业务处理失败，业务数据超长时只返回业务错误码
-        PLOG_ERROR("exception msg too long %u", buff_len);
+        PLOG_ERROR_N_EVERY_SECOND(1, "exception msg too long %u", buff_len);
     }
 
     int32_t result = ExceptionEncode(exception, m_rpc_exception_buff, sizeof(m_rpc_exception_buff));
     if (result < 0) {
-        PLOG_ERROR("ExceptionEncode failed, ret = %d, exception data len = %u", result, buff_len);
+        PLOG_ERROR_N_EVERY_SECOND(1, "ExceptionEncode failed, ret = %d, exception data len = %u", result, buff_len);
         result = 0;
     }
 

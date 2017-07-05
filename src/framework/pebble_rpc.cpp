@@ -112,7 +112,7 @@ uint8_t* PebbleRpc::GetBuffer(int32_t size) {
         return m_buff;
     }
     if (size > max_buff_size) {
-        PLOG_ERROR("the size %d > max buff size %d", size, max_buff_size);
+        PLOG_ERROR_N_EVERY_SECOND(1, "the size %d > max buff size %d", size, max_buff_size);
         return NULL;
     }
     // 2 * size or max_buff_size
@@ -190,7 +190,7 @@ int32_t PebbleRpc::ExceptionEncode(const RpcException& rpc_exception,
         len += encoder->writeMessageEnd();
         encoder->getTransport()->writeEnd();
     } catch (TException e) {
-        PLOG_ERROR("catch exception : %s", e.what());
+        PLOG_ERROR_N_EVERY_SECOND(1, "catch exception : %s", e.what());
         return kPEBBLE_RPC_ENCODE_BODY_FAILED;
     }
 
@@ -218,7 +218,7 @@ int32_t PebbleRpc::ExceptionDecode(const uint8_t* buff, uint32_t buff_len,
         rpc_exception->m_error_code   = ex.type;
         rpc_exception->m_message      = ex.message;
     } catch (TException e) {
-        PLOG_ERROR("catch exception : %s", e.what());
+        PLOG_ERROR_N_EVERY_SECOND(1, "catch exception : %s", e.what());
         return kPEBBLE_RPC_DECODE_BODY_FAILED;
     }
 

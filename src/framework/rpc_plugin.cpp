@@ -49,7 +49,7 @@ int32_t ProtoBufRpcPlugin::HeadEncode(const RpcHead& rpc_head, uint8_t* buff, ui
         // 2. 序列化ProtoBufRpcHead，考虑到性能不使用write(buff, bufflen)接口
         len = pb_head.write(encoder);
     } catch (TException e) {
-        PLOG_ERROR("catch exception : %s", e.what());
+        PLOG_ERROR_N_EVERY_SECOND(1, "catch exception : %s", e.what());
         return kPEBBLE_RPC_ENCODE_HEAD_FAILED;
     }
 
@@ -85,13 +85,13 @@ int32_t ProtoBufRpcPlugin::HeadDecode(const uint8_t* buff, uint32_t buff_len, Rp
         rpc_head->m_session_id    = pb_head.session_id;
         rpc_head->m_function_name = pb_head.function_name;
     } catch (TException e) {
-        PLOG_ERROR("catch exception : %s", e.what());
+        PLOG_ERROR_N_EVERY_SECOND(1, "catch exception : %s", e.what());
         return kPEBBLE_RPC_DECODE_HEAD_FAILED;
     }
 
     if (rpc_head->m_message_type < kRPC_CALL
         || rpc_head->m_message_type > kRPC_ONEWAY) {
-        PLOG_ERROR("message type error %d", rpc_head->m_message_type);
+        PLOG_ERROR_N_EVERY_SECOND(1, "message type error %d", rpc_head->m_message_type);
         return kRPC_UNKNOWN_TYPE;
     }
 
@@ -118,7 +118,7 @@ int32_t ThriftRpcPlugin::HeadEncode(const RpcHead& rpc_head, uint8_t* buff, uint
             static_cast<pebble::dr::protocol::TMessageType>(rpc_head.m_message_type),
             rpc_head.m_session_id);
     } catch (TException e) {
-        PLOG_ERROR("catch exception : %s", e.what());
+        PLOG_ERROR_N_EVERY_SECOND(1, "catch exception : %s", e.what());
         return kPEBBLE_RPC_ENCODE_HEAD_FAILED;
     }
 
@@ -148,13 +148,13 @@ int32_t ThriftRpcPlugin::HeadDecode(const uint8_t* buff, uint32_t buff_len, RpcH
         rpc_head->m_message_type = static_cast<int32_t>(msg_type);
         rpc_head->m_session_id   = static_cast<uint64_t>(seqid);
     } catch (TException e) {
-        PLOG_ERROR("catch exception : %s", e.what());
+        PLOG_ERROR_N_EVERY_SECOND(1, "catch exception : %s", e.what());
         return kPEBBLE_RPC_DECODE_HEAD_FAILED;
     }
 
     if (rpc_head->m_message_type < dr::protocol::T_CALL
         || rpc_head->m_message_type > dr::protocol::T_ONEWAY) {
-        PLOG_ERROR("message type error %d", rpc_head->m_message_type);
+        PLOG_ERROR_N_EVERY_SECOND(1, "message type error %d", rpc_head->m_message_type);
         return kPEBBLE_RPC_MSG_TYPE_ERROR;
     }
 
