@@ -1,16 +1,19 @@
 【目录说明】
 ------------------------------------------------------------------------------------------------------------------------
 ├── build64_release                 编译输出目录
-├── doc                             文档
+├── doc                             文档(内部内容和实际实现已经有不少出入，逐步刷新中...)
 ├── example                         示例
+│   ├── hello_world                 一个稍微完整并简单的上手示例
 │   ├── pebble_cmdline              命令行处理示例
 │   ├── pebble_ctrl_cmd             控制命令处理
 │   ├── pebble_idl                  Pebble IDL语法详细说明
 │   └── pebble_server               PebbleServer应用示例
 │   └── protobuf_rpc                PB RPC应用示例
+│   └── rollback_rpc                反向 RPC应用示例
+│   └── threadpool                  线程池应用示例
 ├── release                         用于发布打包
 ├── src                             框架源码目录
-│   ├── client                      后台SDK，即PebbleClient
+│   ├── client                      后台SDK，即PebbleClient(即将加入手机端SDK)
 │   ├── common                      基础库，业务无关
 │   ├── extension                   扩展库，对接第三方系统的实现
 │   ├── framework                   核心框架，Pebble的基础机制、功能实现
@@ -18,6 +21,8 @@
 ├── thirdparty                      依赖第3方（原则上都要从源码编译）
 │   ├── gflags
 │   ├── gflags-2.0
+│   ├── hiredis
+│   ├── libev
 │   ├── protobuf
 │   ├── rapidjson
 │   └── zookeeper
