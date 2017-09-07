@@ -27,8 +27,9 @@
 // 扩展插件安装 : 对于Pebble的扩展部分，为避免显式依赖，需要在使用时显式安装，不使用时不用安装
 
 /// @brief 安装Tbuspp
-#define INSTALL_TBUSPP(ret) \
-    do { \
+#define INSTALL_TBUSPP \
+    ({int ret = -1; \
+     do { \
         (ret) = pebble::TbusppMessage::Instance()->Init(); \
         if ((ret) != 0) { \
             PLOG_ERROR("TbusppMessage Init failed, ret_code: %d, ret_msg: %s", \
@@ -48,11 +49,13 @@
             PLOG_ERROR("SetRouterFactory failed, ret_code: %d", ret); \
             break; \
         } \
-    } while (0)
+    } while (0); \
+    ret;})
 
 
 /// @brief 安装zookeeper名字服务(使用广播功能时需要)
-#define INSTALL_ZOOKEEPER_NAMING(ret) \
+#define INSTALL_ZOOKEEPER_NAMING \
+    ({ret = -1; \
     do { \
         cxx::shared_ptr<pebble::NamingFactory> naming_factory(new pebble::ZookeeperNamingFactory()); \
         (ret) = pebble::SetNamingFactory(pebble::kNAMING_ZOOKEEPER, naming_factory); \
@@ -60,11 +63,13 @@
             PLOG_ERROR("SetNamingFactory failed, ret_code: %d", ret); \
             break; \
         } \
-    } while (0)
+    } while (0); \
+    ret;})
 
 
 /// @brief 安装Pipe消息处理器(对接gconnd需要)
-#define INSTALL_PIPE_PROCESSOR(ret) \
+#define INSTALL_PIPE_PROCESSOR \
+    ({ret = -1; \
     do { \
         pebble::PipeErrorStringRegister::RegisterErrorString(); \
         cxx::shared_ptr<pebble::ProcessorFactory> processor_factory(new pebble::PipeProcessorFactory()); \
@@ -73,7 +78,8 @@
             PLOG_ERROR("SetProcessorFactory failed, ret_code: %d", ret); \
             break; \
         } \
-    } while (0)
+    } while (0); \
+    ret;})
 
 
 namespace pebble {

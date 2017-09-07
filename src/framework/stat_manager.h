@@ -14,6 +14,8 @@
 #ifndef _PEBBLE_EXTENSION_STAT_MANAGER_H_
 #define _PEBBLE_EXTENSION_STAT_MANAGER_H_
 
+#include <set>
+
 #include "common/platform.h"
 
 namespace pebble {
@@ -51,6 +53,16 @@ public:
     int32_t SetGdataParameter(int32_t report_type,
         int32_t gdata_id,
         int32_t gdata_log_id);
+
+    /// @brief 添加一个需要上报的名字，在一个上报周期内如果一个名字无消息，则上报0
+    void AddReportName(const std::string& name) {
+        m_report_names.insert(name);
+    }
+
+    /// @brief 删除一个上报的名字
+    void RemoveReportName(const std::string& name) {
+        m_report_names.erase(name);
+    }
 
     /// @brief 初始化StatManager
     /// @param app_id 此进程承载的业务ID 由运营系统分配
@@ -106,6 +118,7 @@ private:
     int32_t m_gdata_id;
     int32_t m_gdata_log_id;
     uint64_t m_start_time_s;
+    std::set<std::string> m_report_names;
 };
 
 } // namespace pebble

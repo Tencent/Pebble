@@ -64,7 +64,7 @@ class t_cpp_client_generator : public t_oop_generator {
     //iter = parsed_options.find("pure_enums");
     //gen_pure_enums_ = (iter != parsed_options.end());
     gen_pure_enums_ = true;
-    
+
 
     //iter = parsed_options.find("dense");
     //gen_dense_ = (iter != parsed_options.end());
@@ -634,7 +634,7 @@ void t_cpp_client_generator::generate_enum(t_enum* tenum) {
 void t_cpp_client_generator::generate_consts(std::vector<t_const*> consts) {
   // generate consts in servcie files.
   return;
-  
+
   string f_consts_name = get_out_dir()+program_name_+"_constants.h";
   ofstream f_consts;
   f_consts.open(f_consts_name.c_str());
@@ -723,11 +723,11 @@ void t_cpp_client_generator::generate_consts_in_services(std::vector<t_const*> c
   if (is_generated) {
     return;
   }
-  
+
   if (consts.size() < 1) {
     return;
   }
-  
+
   f_header_ <<
     "class " << program_name_ << "Constants {" << endl <<
     "public:" << endl <<
@@ -762,7 +762,7 @@ void t_cpp_client_generator::generate_consts_in_services(std::vector<t_const*> c
 
   f_header_ <<
     endl <<
-    "extern const " << program_name_ << "Constants g_" << program_name_ << "_constants;" 
+    "extern const " << program_name_ << "Constants g_" << program_name_ << "_constants;"
     << endl << endl;
 
   is_generated = true;
@@ -2095,7 +2095,7 @@ void t_cpp_client_generator::generate_struct_reflection_info(std::ofstream& out,
     }
     out << indent() << "field_infos[\"" << (*m_iter)->get_name() <<  "\"] = new FieldInfo_"
         << (*m_iter)->get_name() << "(" << endl;
-    out << indent(1) << "\"" << (*m_iter)->get_name() << "\", " << (*m_iter)->get_key() 
+    out << indent(1) << "\"" << (*m_iter)->get_name() << "\", " << (*m_iter)->get_key()
         << ", " << type_to_enum((*m_iter)->get_type()) << ", "<< ((*m_iter)->get_req() == t_field::T_OPTIONAL ? "true" : "false") << ", field_attrs);" << endl;
     scope_down(out);
   }
@@ -2163,11 +2163,11 @@ void t_cpp_client_generator::generate_service(t_service* tservice) {
 
   string ns = namespace_prefix(tservice->get_program()->get_namespace("cpp"));
 
-  f_header_ 
+  f_header_
       << indent() << "template<>" << endl
       << indent() << "class GetProcessor<" << ns << service_name_ << "CobSvIf> {" << endl
       << indent() << "public:" << endl
-      << indent(1) << "cxx::shared_ptr<pebble::rpc::processor::TAsyncProcessor> operator() (" << ns << service_name_ << "CobSvIf *handler) {" << endl 
+      << indent(1) << "cxx::shared_ptr<pebble::rpc::processor::TAsyncProcessor> operator() (" << ns << service_name_ << "CobSvIf *handler) {" << endl
       << indent(2) << "cxx::shared_ptr<" << ns << service_name_ << "CobSvIf> iface(handler, D());" << endl
       << indent(2) << "cxx::shared_ptr<pebble::rpc::processor::TAsyncProcessor> processor(new "
       << ns << service_name_ << "AsyncProcessor(iface));" << endl
@@ -2337,7 +2337,7 @@ void t_cpp_client_generator::generate_service_interface(t_service* tservice, str
   if ("CobSv" == style) {
     out = &f_header_;
   }
-  
+
   string service_if_name = service_name_ + style + "If";
   if (style == "CobCl") {
     // Forward declare the client.
@@ -2392,7 +2392,7 @@ void t_cpp_client_generator::generate_service_interface(t_service* tservice, str
     *out << endl;
     *out << indent() << "typedef " << service_name_ << "CobSvIf __InterfaceType;" << endl;
   }
-  
+
   indent_down();
   *out <<
     "};" << endl << endl;
@@ -2556,7 +2556,7 @@ void t_cpp_client_generator::generate_service_null(t_service* tservice, string s
       indent_up();
 
       f_header_ << indent() << "return;" << endl;
-      
+
       indent_down();
       f_header_ <<
         indent() << "}" << endl;
@@ -3004,16 +3004,16 @@ void t_cpp_client_generator::generate_service_client(t_service* tservice, string
       // 对基本类型返回值的函数增加一个recv，保持用户编程风格一致
       if (!recv_function.get_returntype()->is_void()) {
         if (!is_complex_type(recv_function.get_returntype())) {
-          indent(f_header_) << 
+          indent(f_header_) <<
             "void " << recv_function.get_name() <<
             "(int ret, ::pebble::rpc::protocol::TProtocol* prot, cxx::function<void(int, " << type_name(recv_function.get_returntype()) << ")> cob);" << endl;
         } else {
-          indent(f_header_) << 
+          indent(f_header_) <<
             "void " << recv_function.get_name() <<
             "(int ret, ::pebble::rpc::protocol::TProtocol* prot, cxx::function<void(int, " << type_name(recv_function.get_returntype()) << "&)> cob);" << endl;
         }
       } else {
-        indent(f_header_) << 
+        indent(f_header_) <<
           "void " << recv_function.get_name() <<
           "(int ret, ::pebble::rpc::protocol::TProtocol* prot, cxx::function<void(int)> cob);" << endl;
       }
@@ -3065,7 +3065,7 @@ void t_cpp_client_generator::generate_service_client(t_service* tservice, string
     out <<
       scope << service_name_ << style << "Client" << short_suffix <<
       "(" << struct_para_2 << ") ";
-  
+
     if (extends.empty()) {
       out <<  "{" << endl;
       out <<
@@ -3079,7 +3079,7 @@ void t_cpp_client_generator::generate_service_client(t_service* tservice, string
       out <<  ":" << endl;
       out <<
         indent(1) << extends << style << client_suffix <<
-        "(rpc_connector) {" << endl 
+        "(rpc_connector) {" << endl
         << indent(1) << "service_name = \"" << service_name_ << "\";" << endl
         << "}" << endl;
     }
@@ -3118,12 +3118,12 @@ void t_cpp_client_generator::generate_service_client(t_service* tservice, string
       function_signature_if(*f_iter, ifstyle, scope) << endl;
     scope_up(out);
 
-    indent(out) << "if (!piprot_) {" << endl 
-                << indent(1) << "return pebble::rpc::ErrorInfo::kOtherException;" << endl 
+    indent(out) << "if (!piprot_) {" << endl
+                << indent(1) << "return pebble::rpc::ErrorInfo::kOtherException;" << endl
                 << indent() << "}" << endl;
 
     indent(out) << "try {" << endl;
-    
+
     // send call
     indent(out) << indent() <<
       "send_" << funname << "(";
@@ -3157,7 +3157,7 @@ void t_cpp_client_generator::generate_service_client(t_service* tservice, string
         out << indent() << "if (pebble::rpc::ErrorInfo::kRpcNoRrror == block_ret) {" << endl;
 
         out << indent() << indent() << "try {" << endl;
-        
+
         // recv call
         out << indent() << indent() << indent();
         if (!(*f_iter)->get_returntype()->is_void()) {
@@ -3174,7 +3174,7 @@ void t_cpp_client_generator::generate_service_client(t_service* tservice, string
         out << indent() << indent() << "} catch (pebble::rpc::TException ex) {" << endl;
         out << indent() << indent(1) << "return pebble::rpc::ErrorInfo::kRecvFailed;" << endl;
         out << indent() << indent() << "}" << endl;
-        
+
         out << indent() << "} else {" << endl;
         out << indent() << indent() << "return block_ret;" << endl;
         out << indent() << "}" << endl;
@@ -3209,13 +3209,13 @@ void t_cpp_client_generator::generate_service_client(t_service* tservice, string
             indent() << declare_field(&returnfield, true) << endl;
           call_fail = "cob(pebble::rpc::ErrorInfo::kOtherException, _return);";
         }
-        
+
         out << indent(1) << call_fail << endl
-            << indent(1) << "return;" << endl 
+            << indent(1) << "return;" << endl
             << indent() << "}" << endl;
 
         indent(out) << "try {" << endl;
-        
+
         // call send
         indent(out) << indent() <<
           "send_" << funname << "(";
@@ -3245,9 +3245,9 @@ void t_cpp_client_generator::generate_service_client(t_service* tservice, string
             indent() << declare_field(&returnfield, true) << endl;
           call_fail = "cob(pebble::rpc::ErrorInfo::kSendRequestFailed, _return);";
         }
-        
+
         out << indent(1) << call_fail << endl
-            << indent(1) << "return;" << endl 
+            << indent(1) << "return;" << endl
             << indent() << "}" << endl;
 
         if (style != "Cob") {
@@ -3255,18 +3255,18 @@ void t_cpp_client_generator::generate_service_client(t_service* tservice, string
             std::string bind_overload_func("");
             if (!(*f_iter)->get_returntype()->is_void()) {
               if (!is_complex_type((*f_iter)->get_returntype())) {
-                bind_overload_func = "static_cast<void(" + service_name_ 
+                bind_overload_func = "static_cast<void(" + service_name_
                   + "Client::*)(int, ::pebble::rpc::protocol::TProtocol* prot, cxx::function<void(int, " + type_name((*f_iter)->get_returntype()) + ")>)>";
               } else {
-                bind_overload_func = "static_cast<void(" + service_name_ 
+                bind_overload_func = "static_cast<void(" + service_name_
                   + "Client::*)(int, ::pebble::rpc::protocol::TProtocol* prot, cxx::function<void(int, " + type_name((*f_iter)->get_returntype()) + "&)>)>";
               }
             } else {
-              bind_overload_func = "static_cast<void(" + service_name_ 
+              bind_overload_func = "static_cast<void(" + service_name_
                 + "Client::*)(int, ::pebble::rpc::protocol::TProtocol* prot, cxx::function<void(int)>)>";
             }
             out << indent() << "cxx::function<void(int, ::pebble::rpc::protocol::TProtocol*)> recv_cob = cxx::bind("
-                << bind_overload_func << "(&" << 
+                << bind_overload_func << "(&" <<
                 service_name_ << "Client::recv_" << funname << "), this";
 
             //if (!(*f_iter)->get_returntype()->is_void()) {
@@ -3668,7 +3668,7 @@ void t_cpp_client_generator::generate_service_client(t_service* tservice, string
         } else {
           out << indent() << "cob(0);" << endl;
         }
-        
+
         //t_struct* xs = (*f_iter)->get_xceptions();
         //const std::vector<t_field*>& xceptions = xs->get_members();
         //vector<t_field*>::const_iterator x_iter;
@@ -3731,7 +3731,7 @@ class ProcessorGenerator4Client {
     generate_class_definition();
 
     generate_construct_function();
-    
+
     // Generate the dispatchCall() function
     generate_dispatch_call(false);
     if (generator_->gen_templates_) {
@@ -4019,7 +4019,7 @@ void ProcessorGenerator4Client::generate_class_definition() {
   if (!extends_.empty()) {
     father_names = string(" + ") + string("std::string(\";\")") + string(" + ") + extends_ + string("::getServiceName()");
   }
-  out << indent() << "std::string getServiceName() { return \"" << service_name_ << "\"" << 
+  out << indent() << "std::string getServiceName() { return \"" << service_name_ << "\"" <<
     father_names << "; }" << endl;
   indent_down();
   out <<
@@ -4045,7 +4045,7 @@ void ProcessorGenerator4Client::generate_class_definition() {
 void ProcessorGenerator4Client::generate_construct_function() {
   vector<t_function*> functions = service_->get_functions();
   vector<t_function*>::iterator f_iter;
-  
+
   f_out_ <<
     class_name_ << "::" << class_name_ <<
     "(cxx::shared_ptr<" << if_name_ << "> iface) :" << endl;
@@ -4463,7 +4463,7 @@ void t_cpp_client_generator::generate_process_function(t_service* tservice,
         endl <<
         indent() << "::pebble::rpc::TApplicationException x(e.what());" <<
           endl <<
-        indent() << "oprot->writeMessageBegin(\"" << 
+        indent() << "oprot->writeMessageBegin(\"" <<
           service_name_ << ":" << tfunction->get_name() <<
           "\", ::pebble::rpc::protocol::T_EXCEPTION, seqid);" << endl <<
         indent() << "x.write(oprot);" << endl <<
@@ -4497,7 +4497,7 @@ void t_cpp_client_generator::generate_process_function(t_service* tservice,
       indent(1) << "this->eventHandler_->preWrite(ctx, " <<
         service_func_name << ");" << endl <<
       indent() << "}" << endl << endl <<
-      indent() << "oprot->writeMessageBegin(\"" << 
+      indent() << "oprot->writeMessageBegin(\"" <<
         service_name_ << ":" << tfunction->get_name() <<
         "\", ::pebble::rpc::protocol::T_REPLY, seqid);" << endl <<
       indent() << "result.write(oprot);" << endl <<
@@ -4546,7 +4546,7 @@ void t_cpp_client_generator::generate_process_function(t_service* tservice,
         "(cob, seqid, _iprot, _oprot);" << endl <<
         indent() << "}" << endl <<
         //indent() << "T_GENERIC_PROTOCOL(this, iprot, _iprot);" << endl <<
-        //indent() << "T_GENERIC_PROTOCOL(this, oprot, _oprot);" << endl << 
+        //indent() << "T_GENERIC_PROTOCOL(this, oprot, _oprot);" << endl <<
         endl;
     }
 
@@ -4612,7 +4612,7 @@ void t_cpp_client_generator::generate_process_function(t_service* tservice,
       out << indent() << "cob(true);" << endl;
       out <<
         indent() << "iface_->" << tfunction->get_name() << "(" << endl;
-      
+
       // XXX Whitespace cleanup.
       std::string para_sp;
       for (f_iter = fields.begin(); f_iter != fields.end(); ++f_iter) {
@@ -4658,7 +4658,7 @@ void t_cpp_client_generator::generate_process_function(t_service* tservice,
 
       out <<
         indent() << "iface_->" << tfunction->get_name() << "(" << endl;
-      
+
       // XXX Whitespace cleanup.
       std::string para_sp;
       for (f_iter = fields.begin(); f_iter != fields.end(); ++f_iter) {
@@ -4686,7 +4686,7 @@ void t_cpp_client_generator::generate_process_function(t_service* tservice,
       }
     }
 
-    
+
     out << endl << indent() << ");" << endl;
 
     if (tfunction->is_oneway()) {
@@ -4759,7 +4759,7 @@ void t_cpp_client_generator::generate_process_function(t_service* tservice,
         indent(1) << "this->eventHandler_->preWrite(ctx, " <<
           service_func_name << ");" << endl <<
         indent() << "}" << endl << endl <<
-        indent() << "oprot->writeMessageBegin(\"" << 
+        indent() << "oprot->writeMessageBegin(\"" <<
           service_name_ << ":" << tfunction->get_name() <<
           "\", ::pebble::rpc::protocol::T_REPLY, seqid);" << endl <<
         indent() << "result.write(oprot);" << endl <<
@@ -4852,7 +4852,7 @@ void t_cpp_client_generator::generate_process_function(t_service* tservice,
         endl <<
         indent() << "::pebble::rpc::TApplicationException x(e.what());" <<
           endl <<
-        indent() << "oprot->writeMessageBegin(\"" << 
+        indent() << "oprot->writeMessageBegin(\"" <<
           service_name_ << ":" << tfunction->get_name() <<
           "\", ::pebble::rpc::protocol::T_EXCEPTION, seqid);" << endl <<
         indent() << "x.write(oprot);" << endl <<
@@ -4873,7 +4873,7 @@ void t_cpp_client_generator::generate_process_function(t_service* tservice,
         indent(1) << "this->eventHandler_->preWrite(ctx, " <<
           service_func_name << ");" << endl <<
         indent() << "}" << endl << endl <<
-        indent() << "oprot->writeMessageBegin(\"" << 
+        indent() << "oprot->writeMessageBegin(\"" <<
           service_name_ << ":" << tfunction->get_name() <<
           "\", ::pebble::rpc::protocol::T_REPLY, seqid);" << endl <<
         indent() << "result.write(oprot);" << endl <<

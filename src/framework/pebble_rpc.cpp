@@ -158,14 +158,48 @@ void PebbleRpc::SendRequestParallel(int64_t handle,
 
 int32_t PebbleRpc::HeadEncode(const RpcHead& rpc_head, uint8_t* buff, uint32_t buff_len) {
     if (m_rpc_plugin) {
-        return m_rpc_plugin->HeadEncode(rpc_head, buff, buff_len);
+        int len = m_rpc_plugin->HeadEncode(rpc_head, buff, buff_len);
+        if (m_code_type != kCODE_JSON) {
+            return len;
+        }
+
+        // json编码头部后再补充一个','
+        int append_size = 0;
+        if (len > 0 && len < static_cast<int>(buff_len)) {
+            append_size = dr::protocol::writeElemSeparator(buff + len, buff_len - len);
+        }
+
+        if (append_size <= 0) {
+            PLOG_ERROR_N_EVERY_SECOND(1, "writeElemSeparator failed(%d),len=%d, buff_len=%u",
+                append_size, len, buff_len);
+            return kPEBBLE_RPC_ENCODE_HEAD_FAILED;
+        }
+
+        return len + append_size;
     }
     return kPEBBLE_RPC_UNKNOWN_CODEC_TYPE;
 }
 
 int32_t PebbleRpc::HeadDecode(const uint8_t* buff, uint32_t buff_len, RpcHead* rpc_head) {
     if (m_rpc_plugin) {
-        return m_rpc_plugin->HeadDecode(buff, buff_len, rpc_head);
+        int len = m_rpc_plugin->HeadDecode(buff, buff_len, rpc_head);
+        if (m_code_type != kCODE_JSON) {
+            return len;
+        }
+
+        // json解码头部后再解出','
+        int read_len = 0;
+        if (len > 0 && len < static_cast<int>(buff_len)) {
+            read_len = dr::protocol::readElemSeparator(buff + len, buff_len - len);
+        }
+
+        if (read_len <= 0) {
+            PLOG_ERROR_N_EVERY_SECOND(1, "readElemSeparator failed(%d),len=%d, buff_len=%u",
+                read_len, len, buff_len);
+            return kPEBBLE_RPC_ENCODE_HEAD_FAILED;
+        }
+
+        return len + read_len;
     }
     return kPEBBLE_RPC_UNKNOWN_CODEC_TYPE;
 }

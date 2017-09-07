@@ -1,0 +1,8 @@
+
+namespace cpp example
+
+// IDLÓï·¨Çë²Î¿¼ example/pebble_idl/idl.pebble and (idlex.pebble)
+
+service HelloWorld {
+    string hello(1: string hello),
+}

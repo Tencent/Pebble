@@ -735,6 +735,25 @@ int32_t NetIO::Close(NetAddr dst_addr)
     return ret;
 }
 
+int32_t NetIO::Reset(NetAddr dst_addr)
+{
+    SocketInfo* socket_info = RawGetSocketInfo(dst_addr);
+    if (NULL == socket_info)
+    {
+        ERR("close an invalid addr[0x%lx]", dst_addr);
+        return -1; // 不存在了即认为成功了，返回0
+    }
+
+    if (socket_info->_state != (CONNECT_ADDR | TCP_PROTOCOL)) {
+        ERR("cannt reset state = 0x%x", socket_info->_state);
+        return -2;
+    }
+
+    // 不管close是否成功，都尝试重连
+    RawClose(socket_info);
+    return RawConnect(dst_addr, socket_info);
+}
+
 void NetIO::CloseAll()
 {
     for (NetAddr idx = 0 ; idx < m_used_id ; ++idx)

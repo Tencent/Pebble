@@ -231,7 +231,7 @@ class t_cpp_generator : public t_oop_generator {
   std::string declare_field(t_field* tfield, bool init=false, bool pointer=false, bool constant=false, bool reference=false, std::string alias="");
   std::string function_signature(t_function* tfunction, std::string style, std::string prefix="", bool name_params=true, std::string preargs="");
   std::string function_signature_if(t_function* tfunction, std::string style, std::string prefix="", bool name_params=true);
-  std::string argument_list(t_struct* tstruct, bool name_params=true, bool start_comma=false);
+  std::string argument_list(t_struct* tstruct, bool name_params=true, bool start_comma=false, bool add_ns = false);
   std::string type_to_enum(t_type* ttype);
   std::string local_reflection_name(const char*, t_type* ttype, bool external=false);
 
@@ -4729,7 +4729,7 @@ std::string t_cpp_generator::function_signature_if(t_function* tfunction,
   t_type* ttype     = tfunction->get_returntype();
   t_struct* arglist = tfunction->get_arglist();
 
-  std::string args = argument_list(arglist, name_params, false);
+  std::string args;
   std::string ret_sync;
   std::string ret_parallel;
   std::string ret_async = "const cxx::function<void(int ret_code)>& cb";;
@@ -4737,6 +4737,19 @@ std::string t_cpp_generator::function_signature_if(t_function* tfunction,
 
   std::string type_ref;
   std::string type_const;
+
+  std::string ns = program_->get_namespace("cpp");
+  std::string ns_prefix("");
+  if (ttype->is_struct()) {
+      ns_prefix.append("::");
+      ns_prefix.append(ns);
+      ns_prefix.append("::");
+  }
+  if (style =="CobSv") {
+      args = argument_list(arglist, name_params, false, true);
+  } else {
+      args = argument_list(arglist, name_params, false);
+  }
   if (is_complex_type(ttype)) {
       type_ref   = "&";
       type_const = "const ";
@@ -4745,12 +4758,12 @@ std::string t_cpp_generator::function_signature_if(t_function* tfunction,
   if (!ttype->is_void()) {
     ret_sync   = type_name(ttype) + "* response";
     ret_parallel = type_name(ttype) + "* response, ";
-    ret_async  = "const cxx::function<void(int32_t ret_code, " + type_const + type_name(ttype) + type_ref + " response)>& cb";
+    ret_async  = "const cxx::function<void(int32_t ret_code, " + type_const + ns_prefix + type_name(ttype) + type_ref + " response)>& cb";
   }
 
   if (!tfunction->is_oneway()) {
     if (!ttype->is_void()) {
-      ret_server = "cxx::function<void(int32_t ret_code, " + type_const + type_name(ttype) + type_ref + " response)>& rsp";
+      ret_server = "cxx::function<void(int32_t ret_code, " + type_const + ns_prefix + type_name(ttype) + type_ref + " response)>& rsp";
     } else {
       ret_server = "cxx::function<void(int32_t ret_code)>& rsp";
     }
@@ -4797,8 +4810,10 @@ std::string t_cpp_generator::function_signature_if(t_function* tfunction,
  * @param tstruct The struct definition
  * @return Comma sepearated list of all field names in that struct
  */
-string t_cpp_generator::argument_list(t_struct* tstruct, bool name_params, bool start_comma) {
+string t_cpp_generator::argument_list(t_struct* tstruct, bool name_params, bool start_comma, bool add_ns) {
   string result = "";
+
+  std::string ns = "::" + program_->get_namespace("cpp") + "::";
 
   const vector<t_field*>& fields = tstruct->get_members();
   vector<t_field*>::const_iterator f_iter;
@@ -4809,7 +4824,18 @@ string t_cpp_generator::argument_list(t_struct* tstruct, bool name_params, bool 
     } else {
       result += ", ";
     }
-    result += type_name((*f_iter)->get_type(), false, true) + " " +
+    if (add_ns && (*f_iter)->get_type()->is_struct()) {
+        std::string type_ref;
+        std::string type_const;
+        if (is_complex_type((*f_iter)->get_type())) {
+            type_ref   = "&";
+            type_const = "const ";
+        }
+        result += type_const + ns + type_name((*f_iter)->get_type()) + type_ref;
+    } else {
+        result += type_name((*f_iter)->get_type(), false, true);
+    }
+    result += " " +
       (name_params ? (*f_iter)->get_name() : "/* " + (*f_iter)->get_name() + " */");
   }
   return result;

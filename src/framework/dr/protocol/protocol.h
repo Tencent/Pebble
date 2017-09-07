@@ -20,10 +20,10 @@
 #ifndef PEBBLE_DR_PROTOCOL_PROTOCOL_H
 #define PEBBLE_DR_PROTOCOL_PROTOCOL_H
 
+#include "common/platform.h"
 #include "framework/dr/common/dr_define.h"
 #include "framework/dr/transport/transport.h"
 #include "framework/dr/protocol/protocol_exception.h"
-#include "common/platform.h"
 
 #ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>

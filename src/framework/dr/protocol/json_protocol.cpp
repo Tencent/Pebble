@@ -171,12 +171,19 @@ const static uint8_t kEscapeCharVals[7] = {
   '"', '\\', '\b', '\f', '\n', '\r', '\t',
 };
 
+static bool isWhitespace(uint8_t ch) {
+    if (ch == ' ' || ch == '\n' || ch == '\r' || ch == '\t') {
+        return true;
+    }
+    return false;
+}
+
 static uint32_t skipWhitespace(TJSONProtocol::LookaheadReader &reader) {
     uint32_t len = 0;
     uint8_t ch;
     do {
         ch = reader.peek();
-        if (ch == ' ' || ch == '\n' || ch == '\r' || ch == '\t') {
+        if (isWhitespace(ch)) {
             reader.read();
             len++;
             continue;
@@ -257,6 +264,33 @@ static bool isJSONNumeric(uint8_t ch) {
   return false;
 }
 
+
+// 外部存在独立组装一个json消息的场景，为保证json protocol的封闭性，单独提供两个api供拼接消息头和消息体
+int writeElemSeparator(uint8_t* buff, uint32_t buff_len) {
+    if (buff_len == 0) {
+        return -1;
+    }
+    buff[0] = kJSONElemSeparator;
+    return 1;
+}
+
+int readElemSeparator(const uint8_t* buff, uint32_t buff_len) {
+    if (buff_len == 0) {
+        return -1;
+    }
+
+    int find = -2;
+    for (int i = 0; i < static_cast<int>(buff_len); i++) {
+        if (isWhitespace(buff[i])) {
+            continue;
+        }
+        if (buff[i] == kJSONElemSeparator) {
+            find = i + 1;
+        }
+        break;
+    }
+    return find;
+}
 
 /**
  * Class to serve as base JSON context and as base class for other context

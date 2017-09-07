@@ -59,7 +59,7 @@ int32_t IsPathMatched(const std::string& match_name,
 
 ZookeeperCache::ZookeeperCache(ZookeeperClient* zookeeper_client)
     :   m_zk_client(zookeeper_client),
-        m_refresh_time_ms(300000), m_invalid_time_ms(700000),
+        m_refresh_time_ms(300000), m_invalid_time_ms(1800000),
         m_curr_time(0), m_last_refresh(0)
 {
 }

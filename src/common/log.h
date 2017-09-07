@@ -146,11 +146,11 @@ private:
 } // namespace pebble
 
 
-#define PLOG_FATAL(fmt, ...) pebble::Log::Instance().Write(pebble::LOG_PRIORITY_FATAL, __FILE__, __LINE__, __FUNCTION__, fmt, ##__VA_ARGS__); // NOLINT
-#define PLOG_ERROR(fmt, ...) pebble::Log::Instance().Write(pebble::LOG_PRIORITY_ERROR, __FILE__, __LINE__, __FUNCTION__, fmt, ##__VA_ARGS__); // NOLINT
-#define PLOG_INFO(fmt,  ...) pebble::Log::Instance().Write(pebble::LOG_PRIORITY_INFO,  __FILE__, __LINE__, __FUNCTION__, fmt, ##__VA_ARGS__); // NOLINT
-#define PLOG_DEBUG(fmt, ...) pebble::Log::Instance().Write(pebble::LOG_PRIORITY_DEBUG, __FILE__, __LINE__, __FUNCTION__, fmt, ##__VA_ARGS__); // NOLINT
-#define PLOG_TRACE(fmt, ...) pebble::Log::Instance().Write(pebble::LOG_PRIORITY_TRACE, __FILE__, __LINE__, __FUNCTION__, fmt, ##__VA_ARGS__); // NOLINT
+#define PLOG_FATAL(fmt, ...) do { if (pebble::LOG_PRIORITY_FATAL >= pebble::Log::Instance().GetPriority()) { pebble::Log::Instance().Write(pebble::LOG_PRIORITY_FATAL, __FILE__, __LINE__, __FUNCTION__, fmt, ##__VA_ARGS__); } } while (0)
+#define PLOG_ERROR(fmt, ...) do { if (pebble::LOG_PRIORITY_ERROR >= pebble::Log::Instance().GetPriority()) { pebble::Log::Instance().Write(pebble::LOG_PRIORITY_ERROR, __FILE__, __LINE__, __FUNCTION__, fmt, ##__VA_ARGS__); } } while (0)
+#define PLOG_INFO(fmt,  ...) do { if (pebble::LOG_PRIORITY_INFO  >= pebble::Log::Instance().GetPriority()) { pebble::Log::Instance().Write(pebble::LOG_PRIORITY_INFO,  __FILE__, __LINE__, __FUNCTION__, fmt, ##__VA_ARGS__); } } while (0)
+#define PLOG_DEBUG(fmt, ...) do { if (pebble::LOG_PRIORITY_DEBUG >= pebble::Log::Instance().GetPriority()) { pebble::Log::Instance().Write(pebble::LOG_PRIORITY_DEBUG, __FILE__, __LINE__, __FUNCTION__, fmt, ##__VA_ARGS__); } } while (0)
+#define PLOG_TRACE(fmt, ...) do { if (pebble::LOG_PRIORITY_TRACE >= pebble::Log::Instance().GetPriority()) { pebble::Log::Instance().Write(pebble::LOG_PRIORITY_TRACE, __FILE__, __LINE__, __FUNCTION__, fmt, ##__VA_ARGS__); } } while (0)
 
 #define PLOG_STAT(data) pebble::Log::Instance().Write(data);
 
@@ -185,7 +185,8 @@ private:
             if (START_TIME_VAR + 1000000 < NOW_TIME_VAR) { \
                 START_TIME_VAR = NOW_TIME_VAR; \
                 if (LOG_CNT_VAR > num) { \
-                    PLOG_INFO("discard %d logs last second", LOG_CNT_VAR - num); \
+                    pebble::Log::Instance().Write(pri, __FILE__, __LINE__, __FUNCTION__, \
+                        "discard %d logs last second", LOG_CNT_VAR - num); \
                 } \
                 LOG_CNT_VAR = 0; \
             } \

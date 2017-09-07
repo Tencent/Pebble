@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "common/log.h"
 #include "common/net_util.h"
 #include "common/string_utility.h"
 #include "common/time_utility.h"
@@ -36,7 +37,7 @@ public:
     /// @brief cache新的发送数据，添加到发送队列尾部
     /// @return 0 成功
     /// @return <0 失败
-    int32_t CacheSendData(const uint8_t* data, uint32_t data_len);
+    int32_t CacheSendData(const uint8_t* data, uint32_t data_len, bool full_pkg);
 
     /// @brief 在最后cache数据上append新的数据
     /// @return 0 成功
@@ -61,6 +62,8 @@ public:
     /// @brief 是否有新的消息
     bool HasNewMsg();
 
+    void Reset();
+
     // 每个连接维护一个接收缓冲区，每次只收取一个完整包并持有，直至上层用户消费掉，然后再开始接收新的数据
     uint8_t* _buff;         // 接收缓冲区
     uint32_t _buff_len;     // 接收缓冲区大小
@@ -73,9 +76,10 @@ public:
 
     // 每个连接维护发送消息列表，若一个消息未完全发送成功，需要缓存剩余数据，直至发送完毕
     struct Msg {
-        Msg() : _msg_len(0), _msg(NULL) {}
+        Msg() : _msg_len(0), _msg(NULL), _full_pkg(0) {}
         uint32_t _msg_len;
-        uint8_t* _msg;  // 内存由外部维护
+        uint8_t* _msg;      // 内存由外部维护
+        uint8_t  _full_pkg; // 0:非整包 1:整包
     };
     uint32_t _max_send_list_size;
     std::list<Msg> _send_msg_list; // 待发送的消息缓存，固定限制大小为1w
@@ -89,7 +93,7 @@ NetConnection::NetConnection() {
     _cur_msg_len    = 0;
     _arrived_ms     = 0;
     _peer_addr      = INVAILD_HANDLE;
-    _max_send_list_size = 10000;
+    _max_send_list_size = 1000;
 }
 
 NetConnection::~NetConnection() {
@@ -117,7 +121,7 @@ int32_t NetConnection::Init(uint32_t buff_len, uint32_t msg_head_len) {
 }
 
 // 数据发送失败时，把未发送完成的数据cache起来，择机发送
-int32_t NetConnection::CacheSendData(const uint8_t* data, uint32_t data_len) {
+int32_t NetConnection::CacheSendData(const uint8_t* data, uint32_t data_len, bool full_pkg) {
     if (data_len == 0 || data == NULL) {
         return -1;
     }
@@ -131,6 +135,7 @@ int32_t NetConnection::CacheSendData(const uint8_t* data, uint32_t data_len) {
     if (msg._msg == NULL) {
         return -3;
     }
+    msg._full_pkg = full_pkg ? 1 : 0;
 
     memcpy(msg._msg, data, data_len);
     _send_msg_list.push_back(msg);
@@ -203,18 +208,38 @@ bool NetConnection::HasNewMsg() {
     return (_recv_len > 0 && _recv_len == _cur_msg_len);
 }
 
+void NetConnection::Reset() {
+    // 接收残渣数据清理
+    _recv_len = 0;
+    _cur_msg_len = 0;
+    _arrived_ms = 0;
+
+    // 发送残渣数据清理
+    if (!_send_msg_list.empty()) {
+        Msg& msg = _send_msg_list.front();
+        if (msg._full_pkg == 0) {
+            free(msg._msg);
+            _send_msg_list.pop_front();
+        }
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+enum {
+    RECV_CONTINUE = 0,  // 继续读
+    RECV_END_PKG,       // 读完毕，有新包
+    RECV_END_PART,      // 读完毕，无完整包
+};
+
 NetMessage::NetMessage() {
-    m_last_error[0] = 0;
     m_epoll = NULL;
     m_netio = NULL;
 
     m_send_buff    = NULL;
     m_msg_head_len = 0;
     m_msg_buff_len = DEFAULT_MSG_BUFF_LEN;
-    m_max_send_list_size = 10000;
+    m_max_send_list_size = 1000;
 }
 
 NetMessage::~NetMessage() {
@@ -228,7 +253,7 @@ int32_t NetMessage::Init(uint32_t msg_head_len, const GetMsgDataLen& get_msg_dat
     uint32_t msg_buff_len) {
 
     if (!get_msg_data_len_func) {
-        _LOG_LAST_ERROR("get_msg_data_len_func is null");
+        PLOG_ERROR("get_msg_data_len_func is null");
         return kMESSAGE_INVAILD_PARAM;
     }
 
@@ -239,6 +264,7 @@ int32_t NetMessage::Init(uint32_t msg_head_len, const GetMsgDataLen& get_msg_dat
     }
 
     if (m_send_buff) {
+        PLOG_INFO("send buff is already exist, free it");
         free(m_send_buff);
     }
     m_send_buff = (uint8_t*)malloc(m_msg_buff_len);
@@ -248,7 +274,7 @@ int32_t NetMessage::Init(uint32_t msg_head_len, const GetMsgDataLen& get_msg_dat
         m_epoll = new Epoll();
         ret = m_epoll->Init(1024);
         if (ret != 0) {
-            _LOG_LAST_ERROR("%s", m_epoll->GetLastError());
+            PLOG_ERROR("epoll init failed %s", m_epoll->GetLastError());
             return kMESSAGE_EPOLL_INIT_FAILED;
         }
     }
@@ -257,7 +283,7 @@ int32_t NetMessage::Init(uint32_t msg_head_len, const GetMsgDataLen& get_msg_dat
         m_netio = new NetIO();
         ret = m_netio->Init(m_epoll);
         if (ret != 0) {
-            _LOG_LAST_ERROR("%s", m_netio->GetLastError());
+            PLOG_ERROR("netio init failed %s", m_netio->GetLastError());
             return kMESSAGE_NETIO_INIT_FAILED;
         }
     }
@@ -268,7 +294,7 @@ int32_t NetMessage::Init(uint32_t msg_head_len, const GetMsgDataLen& get_msg_dat
 uint64_t NetMessage::Bind(const std::string& ip, uint16_t port) {
     NetAddr netaddr = m_netio->Listen(ip, port);
     if (INVAILD_NETADDR == netaddr) {
-        _LOG_LAST_ERROR("listen %s:%d failed(%s)", ip.c_str(), port, m_netio->GetLastError());
+        PLOG_ERROR("listen %s:%d failed(%s)", ip.c_str(), port, m_netio->GetLastError());
         return kMESSAGE_BIND_ADDR_FAILED;
     }
 
@@ -287,7 +313,7 @@ uint64_t NetMessage::Bind(const std::string& ip, uint16_t port) {
 uint64_t NetMessage::Connect(const std::string& ip, uint16_t port) {
     NetAddr netaddr = m_netio->ConnectPeer(ip, port);
     if (INVAILD_NETADDR == netaddr) {
-        _LOG_LAST_ERROR("connect %s:%d failed(%s)", ip.c_str(), port, m_netio->GetLastError());
+        PLOG_ERROR("connect %s:%d failed(%s)", ip.c_str(), port, m_netio->GetLastError());
         return kMESSAGE_CONNECT_ADDR_FAILED;
     }
 
@@ -300,25 +326,54 @@ uint64_t NetMessage::Connect(const std::string& ip, uint16_t port) {
 }
 
 int32_t NetMessage::Send(uint64_t handle, const uint8_t* msg, uint32_t msg_len) {
-    int32_t send_len = SendData(handle, msg, msg_len);
 
+    int32_t send_len = 0;
+    uint64_t local_handle = GetLocalHandle(handle);
+    const SocketInfo* socket_info = m_netio->GetSocketInfo(local_handle);
+    // UDP直接发，不缓存
+    if (socket_info->_state & UDP_PROTOCOL) {
+        if (socket_info->_state & CONNECT_ADDR) { // udp protocol connect
+            send_len = m_netio->Send(handle, (char*)msg, msg_len);
+        } else { // udp protocol listen
+            send_len = m_netio->SendTo(local_handle, handle, (char*)msg, msg_len);
+        }
+        return send_len == (int32_t)msg_len ? 0 : kMESSAGE_SEND_FAILED;
+    }
+
+    // TCP
+    NetConnection* connection = GetConnection(handle);
+    if (connection == NULL) {
+        PLOG_ERROR_N_EVERY_SECOND(1, "get connection %lu failed", handle);
+        return kMESSAGE_UNKNOWN_CONNECTION;
+    }
+
+    // 有缓存，直接放入缓存中，消息排队
+    SendCacheData(handle, connection);
+    if (!connection->_send_msg_list.empty()) {
+        int32_t ret = connection->CacheSendData(msg, msg_len, true);
+        if (ret != 0) {
+            PLOG_ERROR_N_EVERY_SECOND(1, "cache msg failed(%d), len = %d", ret, msg_len);
+            return kMESSAGE_CACHE_FAILED;
+        }
+        return 0;
+    }
+
+    // 无缓存，直接发送到socket
+    send_len = m_netio->Send(handle, (char*)msg, msg_len);
     if (send_len < 0) {
+        OnSocketError(handle);
         return send_len;
     }
 
+    // 发送成功
     if (send_len == (int32_t)msg_len) {
         return 0;
     }
 
-    // 有数据未发完，需要缓存
-    NetConnection* connection = GetConnection(handle);
-    if (connection == NULL) {
-        _LOG_LAST_ERROR("get connection %lu failed", handle);
-        return kMESSAGE_CACHE_FAILED;
-    }
-    int32_t ret = connection->CacheSendData(msg + send_len, msg_len - send_len);
+    // 未发送数据缓存，send_len = 0 说明数据包完整
+    int32_t ret = connection->CacheSendData(msg + send_len, msg_len - send_len, send_len == 0);
     if (ret != 0) {
-        _LOG_LAST_ERROR("cache msg failed(%d), len = %d", ret, msg_len - send_len);
+        PLOG_ERROR_N_EVERY_SECOND(1, "cache msg failed(%d), len = %d", ret, msg_len - send_len);
         return kMESSAGE_CACHE_FAILED;
     }
 
@@ -327,14 +382,16 @@ int32_t NetMessage::Send(uint64_t handle, const uint8_t* msg, uint32_t msg_len) 
 
 int32_t NetMessage::SendV(uint64_t handle, uint32_t msg_frag_num,
                           const uint8_t* msg_frag[], uint32_t msg_frag_len[]) {
-    uint64_t send_handle = GetSendHandle(handle);
+
+    // UDP，组装一个包发送，直接发送到网络，不缓存
+    uint64_t local_handle = GetLocalHandle(handle);
     uint32_t msg_len = 0;
-    const SocketInfo* socket_info = m_netio->GetSocketInfo(send_handle);
+    int32_t send_len = 0;
+    const SocketInfo* socket_info = m_netio->GetSocketInfo(local_handle);
     if (socket_info->_state & UDP_PROTOCOL) {
-        // 分片的消息cp到一起
         for (uint32_t i = 0; i < msg_frag_num; i++) {
             if (msg_len + msg_frag_len[i] > m_msg_buff_len) {
-                _LOG_LAST_ERROR("bufflen(%u) < msglen(%u) i=%d",
+                PLOG_ERROR_N_EVERY_SECOND(1, "bufflen(%u) < msglen(%u) i=%d",
                     m_msg_buff_len, msg_len + msg_frag_len[i], i);
                 return kMESSAGE_SEND_BUFF_NOT_ENOUGH;
             }
@@ -342,16 +399,45 @@ int32_t NetMessage::SendV(uint64_t handle, uint32_t msg_frag_num,
             msg_len += msg_frag_len[i];
         }
 
-        return Send(handle, m_send_buff, msg_len);
+        if (socket_info->_state & CONNECT_ADDR) { // udp protocol connect
+            send_len = m_netio->Send(handle, (char*)m_send_buff, msg_len);
+        } else { // udp protocol listen
+            send_len = m_netio->SendTo(local_handle, handle, (char*)m_send_buff, msg_len);
+        }
+        return send_len == (int32_t)msg_len ? 0 : kMESSAGE_SEND_FAILED;
     }
 
-    // tcp
-    int32_t send_len = m_netio->SendV(handle, msg_frag_num, (const char**)msg_frag, msg_frag_len);
+    // TCP，支持多段发送
+    NetConnection* connection = GetConnection(handle);
+    if (connection == NULL) {
+        PLOG_ERROR_N_EVERY_SECOND(1, "get connection %lu failed", handle);
+        return kMESSAGE_UNKNOWN_CONNECTION;
+    }
 
-    // 网络错误，关闭连接
+    // 有缓存，直接放入缓存中，消息排队
+    int32_t ret = 0;
+    SendCacheData(handle, connection);
+    if (!connection->_send_msg_list.empty()) {
+        for (uint32_t i = 0; i < msg_frag_num; i++) {
+            if (i == 0) {
+                ret = connection->CacheSendData(msg_frag[i], msg_frag_len[i], true);
+            } else {
+                ret = connection->AppendSendData(msg_frag[i], msg_frag_len[i]);
+            }
+
+            if (ret != 0) {
+                PLOG_ERROR_N_EVERY_SECOND(1, "cache msg failed(%d), i = %d", ret, i);
+                return kMESSAGE_CACHE_FAILED;
+            }
+        }
+        return 0;
+    }
+
+    // 无缓存，直接发送到socket
+    send_len = m_netio->SendV(handle, msg_frag_num, (const char**)msg_frag, msg_frag_len);
     if (send_len < 0) {
-        CloseConnection(handle);
-        _LOG_LAST_ERROR("send to %lu failed(%s)", handle, m_netio->GetLastError());
+        OnSocketError(handle);
+        PLOG_ERROR_N_EVERY_SECOND(1, "send to %lu failed(%s)", handle, m_netio->GetLastError());
         return kMESSAGE_SEND_FAILED;
     }
 
@@ -366,15 +452,8 @@ int32_t NetMessage::SendV(uint64_t handle, uint32_t msg_frag_num,
         return 0;
     }
 
-    // 有数据未发完，需要缓存
-    int32_t ret = 0;
+    // 未发送数据缓存
     bool cache = false;
-    NetConnection* connection = GetConnection(handle);
-    if (connection == NULL) {
-        _LOG_LAST_ERROR("get connection %lu failed", handle);
-        return kMESSAGE_CACHE_FAILED;
-    }
-
     for (uint32_t i = 0; i < msg_frag_num; i++) {
         if (send_len >= static_cast<int32_t>(msg_frag_len[i])) {
             send_len -= msg_frag_len[i];
@@ -383,13 +462,13 @@ int32_t NetMessage::SendV(uint64_t handle, uint32_t msg_frag_num,
 
         if (!cache) {
             cache = true;
-            ret = connection->CacheSendData(msg_frag[i] + send_len, msg_frag_len[i] - send_len);
+            ret = connection->CacheSendData(msg_frag[i] + send_len, msg_frag_len[i] - send_len, send_len == 0);
         } else {
             ret = connection->AppendSendData(msg_frag[i] + send_len, msg_frag_len[i] - send_len);
         }
 
         if (ret != 0) {
-            _LOG_LAST_ERROR("cache msg frags failed(%d) i=%d,len=%u.", ret, i, msg_frag_len[i]);
+            PLOG_ERROR_N_EVERY_SECOND(1, "cache msg frags failed(%d) i=%d,len=%u.", ret, i, msg_frag_len[i]);
             return kMESSAGE_CACHE_FAILED;
         }
         send_len = 0;
@@ -403,13 +482,13 @@ int32_t NetMessage::Recv(uint64_t handle, uint8_t* buff, uint32_t* buff_len,
 
     NetConnection* connection = GetConnection(handle);
     if (connection == NULL) {
-        _LOG_LAST_ERROR("get connection %lu failed", handle);
+        PLOG_ERROR_N_EVERY_SECOND(1, "get connection %lu failed", handle);
         return kMESSAGE_UNKNOWN_CONNECTION;
     }
 
     int32_t ret = connection->RecvMsg(buff, buff_len);
     if (ret != 0) {
-        _LOG_LAST_ERROR("uncompelte msg ret=%d", ret);
+        PLOG_ERROR_N_EVERY_SECOND(1, "uncompelte msg ret=%d", ret);
         return kMESSAGE_RECV_FAILED;
     }
 
@@ -433,13 +512,13 @@ int32_t NetMessage::Peek(uint64_t handle,
 
     NetConnection* connection = GetConnection(handle);
     if (connection == NULL) {
-        _LOG_LAST_ERROR("get connection %lu failed", handle);
+        PLOG_ERROR_N_EVERY_SECOND(1, "get connection %lu failed", handle);
         return kMESSAGE_UNKNOWN_CONNECTION;
     }
 
     int32_t ret = connection->PeekMsg(msg, msg_len);
     if (ret != 0) {
-        _LOG_LAST_ERROR("uncompelte msg ret=%d", ret);
+        PLOG_ERROR_N_EVERY_SECOND(1, "uncompelte msg ret=%d", ret);
         return kMESSAGE_RECV_FAILED;
     }
 
@@ -461,13 +540,13 @@ int32_t NetMessage::Peek(uint64_t handle,
 int32_t NetMessage::Pop(uint64_t handle) {
     NetConnection* connection = GetConnection(handle);
     if (connection == NULL) {
-        _LOG_LAST_ERROR("get connection %lu failed", handle);
+        PLOG_ERROR_N_EVERY_SECOND(1, "get connection %lu failed", handle);
         return kMESSAGE_UNKNOWN_CONNECTION;
     }
 
     int32_t ret = connection->PopMsg();
     if (ret != 0) {
-        _LOG_LAST_ERROR("uncompelte msg ret=%d", ret);
+        PLOG_ERROR_N_EVERY_SECOND(1, "uncompelte msg ret=%d", ret);
         return kMESSAGE_RECV_EMPTY;
     }
 
@@ -475,11 +554,13 @@ int32_t NetMessage::Pop(uint64_t handle) {
 }
 
 int32_t NetMessage::Close(uint64_t handle) {
+    // 清理connection数据
     cxx::unordered_map<uint64_t, NetConnection*>::iterator it = m_connections.find(handle);
     if (it != m_connections.end()) {
         delete it->second;
         m_connections.erase(it);
     }
+    // 关闭socket
     m_netio->Close(handle);
     return 0;
 }
@@ -516,18 +597,16 @@ int32_t NetMessage::Poll(uint64_t* handle, int32_t* event, int32_t timeout_ms) {
     }
 
     if (events & EPOLLERR) {
-        _LOG_LAST_ERROR("EPOLLERR get, %lu", netaddr);
-        CloseConnection(netaddr);
+        PLOG_ERROR_N_EVERY_SECOND(1, "EPOLLERR get, %lu", netaddr);
+        OnSocketError(netaddr);
         return kMESSAGE_GET_ERR_EVENT;
     }
 
-    ret = -1;
     if (events & EPOLLOUT) {
-        // 发送缓存数据
-        if (SendCacheData(netaddr) > 0) {
-            // ret = 0;
-        }
+        SendCacheData(netaddr, NULL);
     }
+
+    ret = -1;
 
     const SocketInfo* socket_info = m_netio->GetSocketInfo(netaddr);
     if (events & EPOLLIN) {
@@ -547,9 +626,8 @@ int32_t NetMessage::Poll(uint64_t* handle, int32_t* event, int32_t timeout_ms) {
             ret = RecvUdpData(netaddr);
         }
 
-        if (ret < 0) {
-            CloseConnection(netaddr);
-            return kMESSAGE_RECV_FAILED;
+        if (ret != RECV_END_PKG) {
+            return -1;
         }
 
         ret = 0;
@@ -564,16 +642,17 @@ NetConnection* NetMessage::CreateConnection(uint64_t netaddr) {
     int32_t ret = connection->Init(m_msg_buff_len, m_msg_head_len);
     if (ret < 0) {
         delete connection;
-        _LOG_LAST_ERROR("connection init failed %d", ret);
+        PLOG_ERROR("connection init failed %d", ret);
+        return NULL;
+    }
+
+    if (m_connections.insert({netaddr, connection}).second == false) {
+        delete connection;
+        PLOG_ERROR("connection insert %lu failed", netaddr);
         return NULL;
     }
 
     connection->_max_send_list_size = m_max_send_list_size;
-
-    if (m_connections.insert({netaddr, connection}).second == false) {
-        _LOG_LAST_ERROR("connection insert %lu failed", netaddr);
-        return NULL;
-    }
 
     return connection;
 }
@@ -587,10 +666,25 @@ NetConnection* NetMessage::GetConnection(uint64_t netaddr) {
 }
 
 void NetMessage::CloseConnection(uint64_t netaddr) {
-    // NetMessage只close accept连接，connect不关闭，尝试重连
+    // 收到错包时，需要关闭或重连连接，UDP未加消息头，无需处理
     const SocketInfo* socket_info = m_netio->GetSocketInfo(netaddr);
-    if (socket_info->_state & TCP_PROTOCOL && socket_info->_state & ACCEPT_ADDR) {
+    if (!(socket_info->_state & TCP_PROTOCOL)) {
+        return;
+    }
+
+    // accept的连接关闭socket，删除connection资源，触发对端重连
+    if (socket_info->_state & ACCEPT_ADDR) {
         Close(netaddr);
+        return;
+    }
+
+    // connect的连接重连socket，重置connection资源，对上层屏蔽
+    if (socket_info->_state & CONNECT_ADDR) {
+        cxx::unordered_map<uint64_t, NetConnection*>::iterator it = m_connections.find(netaddr);
+        if (it != m_connections.end()) {
+            it->second->Reset();
+        }
+        m_netio->Reset(netaddr);
     }
 }
 
@@ -603,86 +697,53 @@ void NetMessage::CloseAllConnections() {
     m_netio->CloseAll();
 }
 
-int32_t NetMessage::SendData(uint64_t handle, const uint8_t* msg, uint32_t msg_len) {
-    int32_t send_len = 0;
-    uint64_t send_handle = GetSendHandle(handle);
-    const SocketInfo* socket_info = m_netio->GetSocketInfo(send_handle);
-    if (socket_info->_state & TCP_PROTOCOL) {
-        send_len = m_netio->Send(handle, (char*)msg, msg_len);
-    } else {
-        if (socket_info->_state & CONNECT_ADDR) { // udp protocol connect
-            send_len = m_netio->Send(handle, (char*)msg, msg_len);
-        } else { // udp protocol listen
-            send_len = m_netio->SendTo(send_handle, handle, (char*)msg, msg_len);
+void NetMessage::SendCacheData(uint64_t netaddr, NetConnection* connection) {
+    if (connection == NULL) {
+        connection = GetConnection(netaddr);
+        if (connection == NULL) {
+            PLOG_ERROR_N_EVERY_SECOND(1, "get connection %lu failed", netaddr);
+            return;
         }
     }
 
-    // 网络错误，关闭连接
-    if (send_len < 0) {
-        CloseConnection(handle);
-        _LOG_LAST_ERROR("send to %lu failed(%s)", handle, m_netio->GetLastError());
-        return kMESSAGE_SEND_FAILED;
+    // 每个连接默认最多缓存1000个消息，可以直接发完，避免net_util吃掉OUT事件了
+    while (!connection->_send_msg_list.empty()) {
+        NetConnection::Msg& msg = connection->_send_msg_list.front();
+        int32_t send_len = m_netio->Send(netaddr, (char*)msg._msg, msg._msg_len);
+        if (send_len < 0) {
+            OnSocketError(netaddr);
+            break;
+        }
+
+        if (send_len == (int32_t)msg._msg_len) {
+            // 发送完整数据，清掉缓存
+            free(msg._msg);
+            connection->_send_msg_list.pop_front();
+        } else if (send_len > 0) {
+            // 发送部分数据，重新缓存
+            uint8_t* new_buff = (uint8_t*)malloc(msg._msg_len - send_len);
+            memcpy(new_buff, msg._msg + send_len, msg._msg_len - send_len);
+            free(msg._msg);
+            msg._msg = new_buff;
+            msg._msg_len -= send_len;
+            msg._full_pkg = 0;
+            break;
+        } else {// 发送0字节，缓存不变
+            break;
+        }
     }
-
-    // 发送成功
-    if (send_len == (int32_t)msg_len) {
-        return send_len;
-    }
-
-    // udp包未发完整，返回发送失败
-    if ((socket_info->_state & UDP_PROTOCOL) && send_len > 0) {
-        _LOG_LAST_ERROR("send udp pkg to %lu uncomplete(%s) sendlen=%u,msglen=%u",
-            handle, m_netio->GetLastError(), send_len, msg_len);
-        return kMESSAGE_SEND_FAILED;
-    }
-
-    return send_len;
-}
-
-int32_t NetMessage::SendCacheData(uint64_t netaddr) {
-    NetConnection* connection = GetConnection(netaddr);
-    if (connection == NULL) {
-        _LOG_LAST_ERROR("get connection %lu failed", netaddr);
-        return kMESSAGE_UNKNOWN_CONNECTION;
-    }
-
-    if (connection->_send_msg_list.empty()) {
-        return 0;
-    }
-
-    // 每次暂时发一包
-    NetConnection::Msg& msg = connection->_send_msg_list.front();
-    int32_t send_len = SendData(netaddr, msg._msg, msg._msg_len);
-    if (send_len < 0) {
-        // 返回<0连接已经关闭，缓存已经清理
-        return send_len;
-    }
-
-    if (send_len == (int32_t)msg._msg_len) {
-        // 发送完整数据，清掉缓存
-        connection->_send_msg_list.pop_front();
-    } else if (send_len > 0) {
-        // 发送部分数据，重新缓存
-        uint8_t* new_buff = (uint8_t*)malloc(msg._msg_len - send_len);
-        memcpy(new_buff, msg._msg + send_len, msg._msg_len - send_len);
-        free(msg._msg);
-        msg._msg = new_buff;
-        msg._msg_len -= send_len;
-    } // 发送0字节，缓存不变
-
-    return send_len;
 }
 
 int32_t NetMessage::RecvTcpData(uint64_t netaddr) {
     // 每次收取1包，等待用户消费完后再收取下一包
     NetConnection* connection = GetConnection(netaddr);
     if (connection == NULL) {
-        _LOG_LAST_ERROR("get connection %lu failed", netaddr);
+        PLOG_ERROR_N_EVERY_SECOND(1, "get connection %lu failed", netaddr);
         return kMESSAGE_UNKNOWN_CONNECTION;
     }
 
     if (connection->HasNewMsg()) {
-        return RECV_END;
+        return RECV_END_PKG;
     }
 
     uint32_t old_len = connection->_recv_len; // 已经收取的数据长度
@@ -692,24 +753,31 @@ int32_t NetMessage::RecvTcpData(uint64_t netaddr) {
         need_read = m_msg_head_len - old_len;
         get_msg_len = true;
     } else {
+        if (connection->_cur_msg_len < old_len) {
+            PLOG_ERROR_N_EVERY_SECOND(1, "recv len = %u > msg len = %u", old_len, connection->_cur_msg_len);
+            CloseConnection(netaddr);
+            return kMESSAGE_RECV_INVALID_DATA;
+        }
         need_read = connection->_cur_msg_len - old_len;
     }
 
     int32_t recv_len = m_netio->Recv(netaddr, (char*)connection->_buff + old_len, need_read);
     if (recv_len < 0) {
-        _LOG_LAST_ERROR("recv failed(%d:%s), netaddr=%lu", recv_len, m_netio->GetLastError(), netaddr);
-        return -1;
+        PLOG_ERROR_N_EVERY_SECOND(1, "recv failed(%d:%s), netaddr=%lu", recv_len, m_netio->GetLastError(), netaddr);
+        OnSocketError(netaddr);
+        return kMESSAGE_RECV_FAILED;
     }
     connection->_recv_len += recv_len;
     if (recv_len < (int32_t)need_read) {
         // 未收完期望的数据，等待下次再收
-        return RECV_END;
+        return RECV_END_PART;
     }
 
     if (get_msg_len) {
         int32_t msg_data_len = m_get_msg_data_len_func(connection->_buff, m_msg_head_len);
         if (msg_data_len < 0) {
-            _LOG_LAST_ERROR("para msg head failed(%d)", msg_data_len);
+            PLOG_ERROR_N_EVERY_SECOND(1, "parse msg head failed(%d)", msg_data_len);
+            CloseConnection(netaddr);
             return -1;
         }
         connection->_cur_msg_len = m_msg_head_len + msg_data_len;
@@ -717,7 +785,7 @@ int32_t NetMessage::RecvTcpData(uint64_t netaddr) {
     }
 
     if (connection->HasNewMsg()) {
-        return RECV_END;
+        return RECV_END_PKG;
     }
 
     return RECV_CONTINUE;
@@ -726,7 +794,7 @@ int32_t NetMessage::RecvTcpData(uint64_t netaddr) {
 int32_t NetMessage::RecvUdpData(uint64_t netaddr) {
     NetConnection* connection = GetConnection(netaddr);
     if (connection == NULL) {
-        _LOG_LAST_ERROR("get connection %lu failed", netaddr);
+        PLOG_ERROR_N_EVERY_SECOND(1, "get connection %lu failed", netaddr);
         return kMESSAGE_UNKNOWN_CONNECTION;
     }
 
@@ -739,12 +807,9 @@ int32_t NetMessage::RecvUdpData(uint64_t netaddr) {
     } else {
         recv_len = m_netio->Recv(netaddr, (char*)connection->_buff, connection->_buff_len);
     }
-    if (recv_len < 0) {
-        _LOG_LAST_ERROR("recv failed(%d:%s), netaddr=%lu", recv_len, m_netio->GetLastError(), netaddr);
-        return -1;
-    }
-    if (recv_len == 0) {
-        return 0;
+    if (recv_len <= 0) {
+        PLOG_ERROR_N_EVERY_SECOND(1, "recv failed(%d:%s), netaddr=%lu", recv_len, m_netio->GetLastError(), netaddr);
+        return kMESSAGE_RECV_FAILED;
     }
 
     connection->_cur_msg_len = recv_len;
@@ -756,7 +821,7 @@ int32_t NetMessage::RecvUdpData(uint64_t netaddr) {
         m_peer_handle_to_local[peer_addr] = netaddr;
     }
 
-    return 1;
+    return RECV_END_PKG;
 }
 
 bool NetMessage::IsTcpTransport(uint64_t handle) {
@@ -768,7 +833,7 @@ void NetMessage::SetMaxSendListSize(uint32_t max_send_list_size) {
     m_max_send_list_size = max_send_list_size;
 }
 
-uint64_t NetMessage::GetSendHandle(uint64_t netaddr) {
+uint64_t NetMessage::GetLocalHandle(uint64_t netaddr) {
     cxx::unordered_map<uint64_t, uint64_t>::iterator it = m_peer_handle_to_local.find(netaddr);
     if (it != m_peer_handle_to_local.end()) {
         return it->second;
@@ -776,5 +841,10 @@ uint64_t NetMessage::GetSendHandle(uint64_t netaddr) {
     return netaddr;
 }
 
+void NetMessage::OnSocketError(uint64_t netaddr) {
+    // socket错误时，需要关闭或重连连接，UDP无连接，无需处理
+    // 实现和CloseConnection相同
+    CloseConnection(netaddr);
+}
 
 } // namespace pebble

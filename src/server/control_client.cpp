@@ -103,7 +103,7 @@ int32_t ControlClient::Init(const std::string& url, bool batch) {
         || pebble::StringUtility::StartsWith(url, "http")
         || pebble::StringUtility::StartsWith(url, "tbus")) {
         // tbuspp not opened
-        // INSTALL_TBUSPP(ret);
+        // ret = INSTALL_TBUSPP;
         ret = -1;
     } else if (pebble::StringUtility::StartsWith(url, "tcp")
         || pebble::StringUtility::StartsWith(url, "udp")) {

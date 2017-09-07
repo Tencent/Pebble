@@ -33,6 +33,7 @@ function copy_library_files()
         framework/dr/libpebble_dr.a                             pebble_module/
         framework/libpebble_framework.a                         pebble_module/
         extension/zookeeper/libpebble_zookeeper.a               pebble_module/
+        extension/redis/libpebble_redis.a                       pebble_module/
         server/libpebble_server.a                               pebble_module/
         client/libpebble_client.a                               pebble_module/
 	LIB_LIST
@@ -44,10 +45,7 @@ function copy_include_files()
     echo ===== Copy include files =====
 
     copy_file_list "thirdparty" "include/thirdparty" <<- INC_LIST
-        rapidjson/*.h                                       rapidjson/
-        rapidjson/error/*.h                                 rapidjson/error/
-        rapidjson/internal/*.h                              rapidjson/internal/
-        rapidjson/msinttypes/*.h                            rapidjson/msinttypes/
+        rapidjson/*                                         rapidjson/
         zookeeper/include/*                                 zookeeper/include/
         gflags-2.0/src/gflags/*.h                           gflags/
         protobuf/include/*                                  ./
@@ -58,6 +56,7 @@ function copy_include_files()
         common/*.h                                          common/
         extension/*.h                                       extension/
         extension/zookeeper/*.h                             extension/zookeeper/
+        extension/redis/*.h                                 extension/redis/
         framework/*.h                                       framework/
         framework/dr/*.h                                    framework/dr/
         framework/dr/common/*.h                             framework/dr/common/
@@ -98,7 +97,11 @@ function copy_example_files()
 	pebble_cmdline/*                                    pebble_cmdline/
         pebble_ctrl_cmd/*                                   pebble_ctrl_cmd/
         pebble_idl/*                                        pebble_idl/
+        parallel_demo/*                                     parallel_demo/
         protobuf_rpc/*                                      protobuf_rpc/
+        threadpool/*                                        threadpool/
+	hello_world/*                                       hello_world/
+        rollback_rpc/*                                      rollback_rpc/
 	EXAMPLE_LIST
 }
 
@@ -110,36 +113,43 @@ function copy_document_files()
 	EXAMPLE_LIST
 }
 
+function append_to_lib()
+{
+	rm -f *.o
+	ar -x $2
+	ar -q $1 *.o
+	rm -f *.o
+}
+
 function combine_pebble_libs()
 {
     echo ===== combine pebble libs =====
 
     echo ar libpebble.a
-    ar x $pebble_lib_path/libpebble_common.a
-    ar x $pebble_lib_path/libpebble_dr.a
-    ar x $pebble_lib_path/libpebble_framework.a
-    ar x $pebble_lib_path/libpebble_server.a
-    ar x $pebble_lib_path/libpebble_zookeeper.a
 
     mkdir -p $pebble_lib_s_path
-    rm $pebble_lib_s_path/libpebble.a
+    rm -f $pebble_lib_s_path/libpebble.a
 
-    ar -rcs $pebble_lib_s_path/libpebble.a *.o
+    ar -rcs $pebble_lib_s_path/libpebble.a
 
-    rm *.o
+    append_to_lib  $pebble_lib_s_path/libpebble.a $pebble_lib_path/libpebble_common.a 
+    append_to_lib  $pebble_lib_s_path/libpebble.a $pebble_lib_path/libpebble_dr.a 
+    append_to_lib  $pebble_lib_s_path/libpebble.a $pebble_lib_path/libpebble_framework.a 
+    append_to_lib  $pebble_lib_s_path/libpebble.a $pebble_lib_path/libpebble_server.a 
+    append_to_lib  $pebble_lib_s_path/libpebble.a $pebble_lib_path/libpebble_zookeeper.a 
+    append_to_lib  $pebble_lib_s_path/libpebble.a $pebble_lib_path/libpebble_redis.a 
+
 
     echo ar libpebble_client.a
-    ar x $pebble_lib_path/libpebble_common.a
-    ar x $pebble_lib_path/libpebble_dr.a
-    ar x $pebble_lib_path/libpebble_framework.a
-    ar x $pebble_lib_path/libpebble_client.a
-    ar x $pebble_lib_path/libpebble_zookeeper.a
+    ar -rcs $pebble_lib_s_path/libpebble_client.a
 
-    rm $pebble_lib_s_path/libpebble_client.a
+    append_to_lib  $pebble_lib_s_path/libpebble_client.a $pebble_lib_path/libpebble_common.a 
+    append_to_lib  $pebble_lib_s_path/libpebble_client.a $pebble_lib_path/libpebble_dr.a 
+    append_to_lib  $pebble_lib_s_path/libpebble_client.a $pebble_lib_path/libpebble_framework.a 
+    append_to_lib  $pebble_lib_s_path/libpebble_client.a $pebble_lib_path/libpebble_client.a 
+    append_to_lib  $pebble_lib_s_path/libpebble_client.a $pebble_lib_path/libpebble_zookeeper.a 
+    append_to_lib  $pebble_lib_s_path/libpebble.a $pebble_lib_path/libpebble_redis.a 
 
-    ar -rcs $pebble_lib_s_path/libpebble_client.a *.o
-
-    rm *.o
 
     rm $pebble_lib_path -rf
 

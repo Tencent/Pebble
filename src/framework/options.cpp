@@ -54,6 +54,9 @@ Options::Options() {
 
     // broadcast
     _bc_zk_timeout_ms       = DEFAULT_BC_ZK_TIMEOUT_MS;
+
+    // rpc
+    _proc_req_timeout_ms    = DEFAULT_PROC_REQ_TIMEOUT_MS;
 }
 
 std::string Options::ToString() {
@@ -90,6 +93,8 @@ std::string Options::ToString() {
             << kBcRelayAddress      << " = " << _bc_relay_address     << "\n"
             << kBcZkHost            << " = " << _bc_zk_host           << "\n"
             << kBcZkTimeoutMs       << " = " << _bc_zk_timeout_ms     << "\n"
+        << "[" << kSectionRpc << "]\n"
+            << kProcReqTimeoutMs    << " = " << _proc_req_timeout_ms  << "\n"
         ;
 
     return oss.str();
@@ -102,6 +107,7 @@ const char* kSectionLog         = "log";
 const char* kSectionStat        = "stat";
 const char* kSectionFlowControl = "flow_control";
 const char* kSectionBroadcast   = "broadcast";
+const char* kSectionRpc         = "rpc";
 
 
 // config name
@@ -141,6 +147,9 @@ const char* kIdleUs             = "idle_us";
 const char* kBcRelayAddress     = "relay_address";
 const char* kBcZkHost           = "zk_host";
 const char* kBcZkTimeoutMs      = "zk_connect_timeout_ms";
+
+// [rpc]
+const char* kProcReqTimeoutMs   = "proc_request_timeout_ms";
 
 }  // namespace pebble
 

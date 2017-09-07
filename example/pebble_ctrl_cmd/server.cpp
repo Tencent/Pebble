@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
     if (pebble::StringUtility::StartsWith(options->_app_ctrl_cmd_addr, "tbuspp")
         || pebble::StringUtility::StartsWith(options->_app_ctrl_cmd_addr, "http")
         || pebble::StringUtility::StartsWith(options->_app_ctrl_cmd_addr, "tbus")) {
-        //INSTALL_TBUSPP(ret);
+        // ret = INSTALL_TBUSPP;
         ret = -1;
         ASSERT_EQ(0, ret);
     }

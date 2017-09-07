@@ -146,7 +146,7 @@ struct CoroutineWaitAdaptor : public SyncWaitAdaptor
 };
 
 ZookeeperNaming::ZookeeperNaming()
-    :   m_time_out_ms(20000), m_zk_path("/"),
+    :   m_zk_path("/"),
         m_use_cache(true), m_zk_client(NULL),
         m_cor_schedule(NULL), m_zk_cache(NULL)
 {
@@ -164,10 +164,6 @@ ZookeeperNaming::~ZookeeperNaming()
 
 int32_t ZookeeperNaming::Init(const std::string& host, int32_t time_out_ms)
 {
-    if (time_out_ms > 0) {
-        m_time_out_ms = time_out_ms;
-    }
-
     m_zk_client->Init(host, time_out_ms, m_zk_path);
     int32_t ret = m_zk_client->Connect();
     PLOG_IF_ERROR(kZK_OK != ret, "zookeeper connect failed ret:%d", ret);

@@ -43,6 +43,10 @@ public:
     virtual void ResponseProcComplete(const std::string& name,
         int32_t result, int32_t time_cost_ms);
 
+    virtual void AddNameToStat(const std::string& name);
+
+    virtual void RemoveNameFromStat(const std::string& name);
+
 private:
     StatManager* m_stat_manager;
 };
@@ -65,6 +69,10 @@ public:
 
     virtual void ResponseProcComplete(const std::string& name,
         int32_t result, int32_t time_cost_ms) {}
+
+    virtual void AddNameToStat(const std::string& name) {}
+
+    virtual void RemoveNameFromStat(const std::string& name) {}
 
 private:
     StatManager* m_stat_manager;

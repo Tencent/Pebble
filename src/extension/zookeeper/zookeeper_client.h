@@ -47,6 +47,10 @@ typedef cxx::function<void(int rc, ACL_vector *acl,
 typedef cxx::function<void(int rc, const char *value, int value_len,
                            const Stat *stat)> ZkDataCompletionCb;
 
+enum EphemeralNodeState {
+    kNODE_INIT   = 0,  // 初始态
+    kNODE_RESUME = 1,  // 恢复中
+};
 
 struct EphemeralNodeInfo
 {
@@ -62,6 +66,7 @@ struct EphemeralNodeInfo
     std::string _path;
     std::string _value;
     ACL_vector _acl_vec;
+    EphemeralNodeState _state;
 };
 
 /// @brief zk客户端的c++封装
@@ -171,6 +176,8 @@ public:
 
     static void EphemeralNodeCreateCallback(int rc, const char *value, const void* data);
 
+    void ResumeEphemeralNode();
+
 private:
     std::string m_zk_host;
     int m_time_out_ms;
@@ -186,6 +193,7 @@ private:
     std::set<std::string> m_exist_watch;
     // 保存临时节点信息，在session expired恢复后自动恢复临时节点
     std::set<EphemeralNodeInfo> m_ephemeral_node;
+    int64_t m_last_resume_time;
 };
 
 } // namespace pebble

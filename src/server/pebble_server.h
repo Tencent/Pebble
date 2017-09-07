@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "common/platform.h"
+#include "framework/message.h"
 #include "framework/options.h"
 #include "framework/pebble_rpc.h"
 #include "framework/router.h"
@@ -85,7 +86,7 @@ public:
     virtual int32_t OnReload() { return 0; }
 
     /// @brief Idle事件回调处理
-    /// @return <=0 Pebble sleep 10ms
+    /// @return <=0 Pebble sleep 1ms
     /// @return >0 不sleep
     virtual int32_t OnIdle() { return 0; }
 };
@@ -287,14 +288,19 @@ public:
     int32_t MakeCoroutine(const cxx::function<void()>& routine);
 
     /// @brief 注册控制命令
+    /// @param on_cmd 命令处理回调
     /// @param cmd 用户自定义命令
     /// @param desc 命令使用描述
-    /// @param on_cmd 命令处理回调
     /// @return 0 成功
     /// @return <0 失败
     /// @note 控制命令不能有阻塞操作，建议只实现简单查询功能
     int32_t RegisterControlCommand(const OnControlCommand& on_cmd,
         const std::string& cmd, const std::string& desc);
+
+    /// @brief 设置控制命令ACL策略，默认是不需要鉴权的
+    /// @param auth 是否需要鉴权，如果需要鉴权，需配套设置白名单
+    /// @param white_list 地址白名单列表，当需要鉴权时，白名单的中的地址才会接受处理
+    void SetControlCommandAcl(bool auth, const std::vector<std::string>* white_list);
 
     /// @brief 返回Pebble的配置参数，用户可按需修改
     /// @return Pebble的配置参数对象
@@ -304,6 +310,10 @@ public:
     }
 
     int32_t Close(int64_t handle);
+
+    /// @brief 返回最近一个消息的详细信息
+    /// @return 保证非空
+    MsgExternInfo* GetLastMessageInfo();
 
 public:
     // 下面接口由使用pebble的框架来调用
@@ -332,7 +342,8 @@ private:
 
     int32_t OnStatTimeout();
 
-    void OnRouterAddressChanged(const std::vector<int64_t>& handles, IProcessor* processor);
+    void OnRouterAddressChanged(Router* router,
+        const std::vector<int64_t>& handles, IProcessor* processor);
 
     void StatCpu(Stat* stat);
 
@@ -347,6 +358,8 @@ private:
     void OnControlPrint(const std::vector<std::string>& options, int32_t* ret_code, std::string* data);
 
     void OnControlLog(const std::vector<std::string>& options, int32_t* ret_code, std::string* data);
+
+    int32_t Detach(int64_t handle);
 
 private:
     Options            m_options;
@@ -372,8 +385,10 @@ private:
     PebbleControlHandler* m_control_handler;
     cxx::unordered_map<int64_t, IProcessor*> m_processor_map;
     cxx::unordered_map<std::string, Router*> m_router_map;
+    cxx::unordered_map<Router*, std::vector<int64_t> > m_router_handle_map;
     std::string m_ini_file_name;
     uint32_t    m_is_overload;
+    MsgExternInfo m_last_msg_info;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////

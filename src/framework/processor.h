@@ -90,6 +90,13 @@ public:
     /// @note 多维度的数据由用户自己组装到name中，最终落地到文件，计算与展示由业务的数据分析系统完成
     virtual void ResponseProcComplete(const std::string& name,
         int32_t result, int32_t time_cost_ms) = 0;
+
+    /// @brief 向统计模块添加一个名字，在一个统计周期内未处理消息默认上报0
+    /// @note 如果一个接口在统计周期内没处理消息，但是又需要上报数据，需要显式的注册给统计模块
+    virtual void AddNameToStat(const std::string& name) = 0;
+
+    /// @brief 从统计模块剔除一个名字，在一个统计周期内未处理消息则不上报任何数据
+    virtual void RemoveNameFromStat(const std::string& name) = 0;
 };
 
 /// @brief Pebble消息处理抽象接口

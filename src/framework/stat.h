@@ -47,7 +47,7 @@ public:
         _failure_rate    = 0;
         _average_cost_ms = 0;
         _max_cost_ms     = 0;
-        _min_cost_ms     = 0;
+        _min_cost_ms     = UINT32_MAX;
     }
 };
 
@@ -80,6 +80,12 @@ public:
     /// @return 0 成功
     /// @return 非0 失败
     int32_t AddMessageItem(const std::string& name, int32_t result, int32_t time_cost_ms);
+
+    /// @brief 添加消息统计，如果无此消息的统计则增加一个统计项，值为0，如果有
+    /// @param name 消息标识，如消息名，要求非空
+    /// @return 0 成功
+    /// @return 非0 失败
+    int32_t AddMessageItem(const std::string& name);
 
     /// @brief 按名字获取资源型统计结果
     /// @return NULL 失败 无此名字的统计

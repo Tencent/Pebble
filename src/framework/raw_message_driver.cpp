@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "common/log.h"
 #include "common/string_utility.h"
 #include "framework/net_message.h"
 #include "framework/raw_message_driver.h"
@@ -111,8 +112,16 @@ int32_t RawMessageDriver::Send(int64_t handle, const uint8_t* msg, uint32_t msg_
 int32_t RawMessageDriver::SendV(int64_t handle, uint32_t msg_frag_num,
                           const uint8_t* msg_frag[], uint32_t msg_frag_len[], int32_t flag) {
     if (m_net_message->IsTcpTransport(handle)) {
-        const uint8_t** tmp_frags = new const uint8_t*[msg_frag_num + 1];
-        uint32_t* tmp_frag_len = new uint32_t[msg_frag_num + 1];
+
+#define MAX_FRAG 32
+
+        if (msg_frag_num + 1 > MAX_FRAG) {
+            PLOG_ERROR_N_EVERY_SECOND(1, "msg_frag_num %d > MAX_FRAG %d", msg_frag_num, MAX_FRAG);
+            return kMESSAGE_INVAILD_PARAM;
+        }
+
+        const uint8_t* tmp_frags[MAX_FRAG] = {0};
+        uint32_t tmp_frag_len[MAX_FRAG] = {0};
 
         int32_t msg_len = 0;
         for (uint32_t i = 0; i < msg_frag_num; i++) {
@@ -130,10 +139,7 @@ int32_t RawMessageDriver::SendV(int64_t handle, uint32_t msg_frag_num,
         tmp_frags[0]    = (uint8_t*)(&head);
         tmp_frag_len[0] = sizeof(TcpMsgHead);
 
-        int32_t ret = m_net_message->SendV(handle, msg_frag_num + 1, tmp_frags, tmp_frag_len);
-        delete [] tmp_frags;
-        delete [] tmp_frag_len;
-        return ret;
+        return m_net_message->SendV(handle, msg_frag_num + 1, tmp_frags, tmp_frag_len);
     } else {
         return m_net_message->SendV(handle, msg_frag_num, msg_frag, msg_frag_len);
     }
@@ -215,10 +221,8 @@ int32_t RawMessageDriver::GetUsedSize(int64_t handle, uint32_t* remain_size, uin
 }
 
 const char* RawMessageDriver::GetLastError() {
-    if (m_net_message) {
-        return m_net_message->GetLastError();
-    }
-    return "uninited.";
+    // 所有错误都输出到log
+    return NULL;
 }
 
 int32_t RawMessageDriver::ParseHead(const uint8_t* head, uint32_t head_len) {

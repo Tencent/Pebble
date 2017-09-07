@@ -160,6 +160,11 @@ public:
     /// @note 失败的意义同close
     int32_t Close(NetAddr dst_addr);
 
+    /// @brief 重置连接(先关后连，暂时只针对CONNECT_ADDR类型)
+    /// @return -1 关闭后返回错误，错误原因见errno
+    /// @return 0  重置成功
+    int32_t Reset(NetAddr dst_addr); // TODO: -> ReConnect
+
     /// @brief 关闭所有连接
     void CloseAll();
 

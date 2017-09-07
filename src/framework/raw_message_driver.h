@@ -36,12 +36,13 @@ struct TcpMsgHead {
 
 
 /// @brief RAW TCP/UDP网络驱动接口
+/// @note 这里不考虑性能，仅供开发、测试使用，生产环境使用tbuspp
 class RawMessageDriver : public MessageDriver {
 protected:
     RawMessageDriver();
     RawMessageDriver(const RawMessageDriver& rhs) {}
 public:
-    // 默认接收缓冲区为8M
+    // 默认接收缓冲区为2M
     static const int32_t DEFAULT_MSG_BUFF_LEN = 1024 * 1024 * 2;
     virtual ~RawMessageDriver();
 

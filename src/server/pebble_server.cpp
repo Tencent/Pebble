@@ -29,6 +29,7 @@
 #include "framework/broadcast_mgr.h"
 #include "framework/broadcast_mgr.inh"
 #include "framework/event_handler.inh"
+#include "framework/gdata_api.h"
 #include "framework/message.h"
 #include "framework/monitor.h"
 #include "framework/pebble_rpc.h"
@@ -71,9 +72,10 @@ void pebble_on_reload(int32_t signal) {
 // 独立的控制命令RPC服务处理类，只是纯通道，不关心具体的命令，所有的命令处理都有外部注册
 class PebbleControlHandler : public _PebbleControlCobSvIf {
 public:
-    PebbleControlHandler() : m_index(0), m_history_size(256), m_next_item(0) {}
+    PebbleControlHandler() : m_index(0), m_history_size(256), m_next_item(0), m_auth(false) {}
     ~PebbleControlHandler() {}
     int32_t Init();
+    void SetAcl(bool auth, const std::vector<std::string>* white_list);
     int32_t RegisterCommand(const OnControlCommand& on_cmd, const std::string& cmd,
         const std::string& desc, bool internal = false);
     virtual void RunCommand(const ControlRequest& req,
@@ -82,6 +84,7 @@ public:
 private:
     void OnControlHelp(const std::vector<std::string>& options, int32_t* ret_code, std::string* data);
     void OnControlHistory(const std::vector<std::string>& options, int32_t* ret_code, std::string* data);
+    int32_t AuthCheck();
 
 private:
     struct CmdInfo {
@@ -103,8 +106,27 @@ private:
     int64_t m_index;            // 执行命令的序号
     int32_t m_history_size;     // 存储历史记录的大小
     uint32_t m_next_item;       // 下一个item的位置
+    bool     m_auth;
+    std::vector<std::string> m_white_list;
     std::vector<HistoryItem> m_historys;
 };
+
+void PebbleControlHandler::SetAcl(bool auth, const std::vector<std::string>* white_list) {
+    m_auth = auth;
+    if (white_list == NULL) {
+        m_white_list.clear();
+        return;
+    }
+    m_white_list = *white_list;
+}
+
+int32_t PebbleControlHandler::AuthCheck() {
+    // TODO: 需要message模块提供根据handle获取连接信息的能力(统一tbuspp和其他协议)
+    // 1. 获取当前handle
+    // 2. 从handle获取连接信息
+    // 3. 白名单过滤
+    return 0;
+}
 
 int32_t PebbleControlHandler::RegisterCommand(const OnControlCommand& on_cmd,
     const std::string& cmd, const std::string& desc, bool internal) {
@@ -150,6 +172,16 @@ void PebbleControlHandler::RunCommand(const ControlRequest& req,
     cxx::function<void(int32_t ret_code, const ControlResponse& response)>& rsp) {
 
     ControlResponse response;
+
+    if (m_auth) {
+        if (AuthCheck() != 0) {
+            response.ret_code = -1;
+            response.data = "unsupport command";
+            rsp(0, response);
+            return;
+        }
+    }
+
     // 注册和查找时统一大小写
     std::string tmpcmd(req.command);
     StringUtility::ToLower(&tmpcmd);
@@ -427,7 +459,7 @@ int32_t PebbleServer::Attach(Router* router, IProcessor* processor) {
     }
 
     router->SetOnAddressChanged(cxx::bind(&PebbleServer::OnRouterAddressChanged, this,
-        cxx::placeholders::_1, processor));
+        router, cxx::placeholders::_1, processor));
     return 0;
 }
 
@@ -468,6 +500,7 @@ PebbleRpc* PebbleServer::GetPebbleRpc(ProtocolType protocol_type) {
     PebbleRpc* rpc_instance = new PebbleRpc(rpc_code_type, m_coroutine_schedule);
     rpc_instance->SetSendFunction(Message::Send, Message::SendV);
     rpc_instance->SetEventHandler(m_rpc_event_handler);
+    rpc_instance->SetProcRequestTimeoutMS(m_options._proc_req_timeout_ms);
     m_processor_array[protocol_type] = rpc_instance;
 
     return rpc_instance;
@@ -623,6 +656,14 @@ int32_t PebbleServer::Reload() {
     m_task_monitor->SetTaskThreshold(m_options._task_threshold);
     m_message_expire_monitor->SetExpireThreshold(m_options._message_expire_ms);
 
+    // rpc
+    for (int i = kPEBBLE_RPC_BINARY; i <= kPEBBLE_RPC_PROTOBUF; i++) {
+        if (m_processor_array[i]) {
+            (dynamic_cast<PebbleRpc*>(m_processor_array[i]))
+                ->SetProcRequestTimeoutMS(m_options._proc_req_timeout_ms);
+        }
+    }
+
     return 0;
 }
 
@@ -636,6 +677,7 @@ void PebbleServer::Idle() {
     }
 
     Log::Instance().Flush();
+    oss::CLogDataAPI::Flush();
 
     usleep(m_options._idle_us);
 }
@@ -650,10 +692,10 @@ int32_t PebbleServer::ProcessMessage() {
 
     const uint8_t* msg = NULL;
     uint32_t msg_len   = 0;
-    MsgExternInfo msg_info;
-    ret = Message::Peek(handle, &msg, &msg_len, &msg_info);
+    ret = Message::Peek(handle, &msg, &msg_len, &m_last_msg_info);
     do {
         if (kMESSAGE_RECV_EMPTY == ret) {
+            PLOG_INFO_N_EVERY_SECOND(1, "peek empty msg");
             break;
         }
         if (ret != 0) {
@@ -661,20 +703,20 @@ int32_t PebbleServer::ProcessMessage() {
             break;
         }
 
-        cxx::unordered_map<int64_t, IProcessor*>::iterator it = m_processor_map.find(msg_info._self_handle);
+        cxx::unordered_map<int64_t, IProcessor*>::iterator it = m_processor_map.find(m_last_msg_info._self_handle);
         if (m_processor_map.end() == it) {
             Message::Pop(handle);
-            PLOG_ERROR_N_EVERY_SECOND(1, "handle(%ld) not attach a processor remote(%ld)", msg_info._self_handle, msg_info._remote_handle);
+            PLOG_ERROR_N_EVERY_SECOND(1, "handle(%ld) not attach a processor remote(%ld)", m_last_msg_info._self_handle, m_last_msg_info._remote_handle);
             break;
         }
 
         m_is_overload = kNO_OVERLOAD;
         if (m_options._enable_flow_control) {
-            m_message_expire_monitor->OnMessage(msg_info._msg_arrived_ms);
+            m_message_expire_monitor->OnMessage(m_last_msg_info._msg_arrived_ms);
             m_task_monitor->SetTaskNum(m_coroutine_schedule->Size()); // 内部实现暂使用协程数
             m_is_overload = m_monitor_centor->IsOverLoad();
         }
-        it->second->OnMessage(msg_info._remote_handle, msg, msg_len, &msg_info, m_is_overload);
+        it->second->OnMessage(m_last_msg_info._remote_handle, msg, msg_len, &m_last_msg_info, m_is_overload);
         Message::Pop(handle);
     } while (0);
 
@@ -812,6 +854,9 @@ int32_t PebbleServer::LoadOptionsFromIni(const std::string& file_name) {
     m_options._bc_zk_host = ini_reader->Get(kSectionBroadcast, kBcZkHost, m_options._bc_zk_host);
     m_options._bc_zk_timeout_ms = ini_reader->GetUInt32(kSectionBroadcast, kBcZkTimeoutMs, m_options._bc_zk_timeout_ms);
 
+    // rpc
+    m_options._proc_req_timeout_ms = ini_reader->GetUInt32(kSectionRpc, kProcReqTimeoutMs, m_options._proc_req_timeout_ms);
+
     return 0;
 }
 
@@ -825,12 +870,27 @@ int32_t PebbleServer::OnStatTimeout() {
     return m_stat_timer_ms;
 }
 
-void PebbleServer::OnRouterAddressChanged(const std::vector<int64_t>& handles,
-    IProcessor* processor) {
+void PebbleServer::OnRouterAddressChanged(Router* router,
+    const std::vector<int64_t>& handles, IProcessor* processor) {
 
-    for (std::vector<int64_t>::const_iterator it = handles.begin(); it != handles.end(); ++it) {
-        Attach(*it, processor);
+    cxx::unordered_map<Router*, std::vector<int64_t> >::iterator it =
+        m_router_handle_map.find(router);
+    if (it == m_router_handle_map.end()) {
+        for (std::vector<int64_t>::const_iterator hit = handles.begin(); hit != handles.end(); ++hit) {
+            Attach(*hit, processor);
+        }
+        m_router_handle_map[router] = handles;
+        return;
     }
+
+    // 采取简单策略，先把老的都detach，再attach新的
+    for (std::vector<int64_t>::iterator oit = it->second.begin(); oit != it->second.end(); ++oit) {
+        Detach(*oit);
+    }
+    for (std::vector<int64_t>::const_iterator nit = handles.begin(); nit != handles.end(); ++nit) {
+        Attach(*nit, processor);
+    }
+    it->second = handles;
 }
 
 void PebbleServer::StatCpu(Stat* stat) {
@@ -1054,6 +1114,10 @@ int32_t PebbleServer::RegisterControlCommand(const OnControlCommand& on_cmd,
     return m_control_handler->RegisterCommand(on_cmd, cmd, desc);
 }
 
+void PebbleServer::SetControlCommandAcl(bool auth, const std::vector<std::string>* white_list) {
+    m_control_handler->SetAcl(auth, white_list);
+}
+
 void PebbleServer::OnControlReload(const std::vector<std::string>& options,
     int32_t* ret_code, std::string* data) {
 
@@ -1106,6 +1170,15 @@ void PebbleServer::OnControlLog(const std::vector<std::string>& options,
     data->append(options.front());
     data->append(" success.");
     return;
+}
+
+MsgExternInfo* PebbleServer::GetLastMessageInfo() {
+    return &m_last_msg_info;
+}
+
+int32_t PebbleServer::Detach(int64_t handle) {
+    int num = m_processor_map.erase(handle);
+    return num == 1 ? 0 : -1;
 }
 
 

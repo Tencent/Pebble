@@ -1,17 +1,22 @@
-// Copyright (c) 2017, Tencent Inc.
-// All rights reserved.
-//
-// Author: Richard Gu <richardgu@tencent.com>
-// Created: 05/15/17
-// Description:
+/*
+ * Tencent is pleased to support the open source community by making Pebble available.
+ * Copyright (C) 2016 THL A29 Limited, a Tencent company. All rights reserved.
+ * Licensed under the MIT License (the "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at
+ * http://opensource.org/licenses/MIT
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ *
+ */
+
 
 #ifndef SRC_COMMON_UNCOPYABLE_H
 #define SRC_COMMON_UNCOPYABLE_H
 #pragma once
 
-namespace common {
-
-namespace UncopyableDetails {
+namespace pebble {
 
 class Uncopyable {
 protected:
@@ -23,9 +28,6 @@ private:
     const Uncopyable& operator=(const Uncopyable&);
 }; // class Uncopyable
 
-} // namespace UncopyableDetails
-
-typedef UncopyableDetails::Uncopyable Uncopyable;
 
 #define DECLARE_UNCOPYABLE(Class) \
 private: \
@@ -34,4 +36,4 @@ private: \
 
 } // namespace common
 
-#endif // SRC_COMMON_UNCOPYABLE_H
+#endif // SRC_COMMON_BASE_UNCOPYABLE_H

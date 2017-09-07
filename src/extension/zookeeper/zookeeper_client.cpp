@@ -18,6 +18,7 @@
 #include "common/base64.h"
 #include "common/log.h"
 #include "common/sha1.h"
+#include "common/time_utility.h"
 #include "extension/zookeeper/zookeeper_client.h"
 #include "extension/zookeeper/zookeeper_log.inh"
 
@@ -321,6 +322,7 @@ void ConnectWatcher(zhandle_t* zh, int type, int state, const char *path, void *
         {
         case -112: /*ZOO_EXPIRED_SESSION_STATE*/
         case -113: /*ZOO_AUTH_FAILED_STATE*/
+            PLOG_ERROR("session event: %s", state == -112 ? "session expired" : "auth failed");
             zkclient->AConnect();
             break;
         case 3: /*ZOO_CONNECTED_STATE*/
@@ -343,12 +345,14 @@ EphemeralNodeInfo::EphemeralNodeInfo()
 {
     _acl_vec.count = 0;
     _acl_vec.data = NULL;
+    _state = kNODE_INIT;
 }
 
 EphemeralNodeInfo::EphemeralNodeInfo(const EphemeralNodeInfo& rhs)
 {
     _path = rhs._path;
     _value = rhs._value;
+    _state = rhs._state;
     CopyAclVector(&_acl_vec, &rhs._acl_vec);
 }
 
@@ -361,13 +365,14 @@ EphemeralNodeInfo& EphemeralNodeInfo::operator = (const EphemeralNodeInfo& rhs)
 {
     _path = rhs._path;
     _value = rhs._value;
+    _state = rhs._state;
     CopyAclVector(&_acl_vec, &rhs._acl_vec);
     return *this;
 }
 
 ZookeeperClient::ZookeeperClient()
-    :   m_time_out_ms(3000), m_last_update_time(0), m_zk_path("/"),
-        m_zk_handle(NULL), m_watch_cb(NULL)
+    :   m_time_out_ms(30000), m_last_update_time(0), m_zk_path("/"),
+        m_zk_handle(NULL), m_watch_cb(NULL), m_last_resume_time(0)
 {
 }
 
@@ -399,9 +404,11 @@ int ZookeeperClient::AConnect()
         {
             return 0;
         }
+        PLOG_INFO("zk reinit, sessionid=0x%x", zoo_client_id(m_zk_handle)->client_id);
         Close();
     }
 
+    // 过期之后初始化zkapi不能使用老的sessionid，会导致循环过期(即重连后server又返回过期，又继续...)
     m_zk_handle = zookeeper_init(m_zk_host.c_str(), ConnectWatcher,
                                  m_time_out_ms, NULL, this, 0);
     if (NULL == m_zk_handle)
@@ -438,12 +445,23 @@ void ZookeeperClient::OnConnected()
         AExists(it->c_str(), 1, NULL);
     }
     // 恢复临时节点
+    m_last_resume_time = TimeUtility::GetCurrentMS();
+    std::set<EphemeralNodeInfo> resume_nodes;
     for (std::set<EphemeralNodeInfo>::iterator it = m_ephemeral_node.begin() ;
         it != m_ephemeral_node.end() ; ++it)
     {
-        ACreate(it->_path.c_str(), it->_value.c_str(), it->_value.length(),
+        EphemeralNodeInfo node_info(*it);
+
+        // 已经有恢复标记的，不再恢复，统一放到周期恢复中去重试
+        if (it->_state != kNODE_RESUME) {
+            node_info._state = kNODE_RESUME;
+            ACreate(it->_path.c_str(), it->_value.c_str(), it->_value.length(),
                 &(it->_acl_vec), ZOO_EPHEMERAL, NULL);
+        }
+
+        resume_nodes.insert(node_info);
     }
+    m_ephemeral_node.swap(resume_nodes);
 }
 
 int ZookeeperClient::Connect()
@@ -878,6 +896,9 @@ int ZookeeperClient::Update(bool is_block)
     interest |= ((pfd.revents & POLLOUT) ? ZOOKEEPER_WRITE : 0);
     interest |= ((pfd.revents & POLLHUP) ? ZOOKEEPER_WRITE : 0);
     zookeeper_process(m_zk_handle, interest);
+
+    ResumeEphemeralNode();
+    
     return (interest == 0 ? -1 : 0);
 }
 
@@ -954,7 +975,15 @@ void ZookeeperClient::EphemeralNodeCreateCallback(int rc, const char *value, con
         // 将创建成功了的临时节点记录下来
         if (rc == 0)
         {
+            // 创建成功重置恢复标记
+            holder->_node_info._state = kNODE_INIT;
+            // 不管是首次创建还是恢复先删除原节点(考虑到上面有清理标记操作，简单起见逻辑上不再细分)
+            holder->_client->m_ephemeral_node.erase(holder->_node_info);
             holder->_client->m_ephemeral_node.insert(holder->_node_info);
+            PLOG_INFO("create %s success", holder->_node_info._path.c_str());
+        } else {
+            // 创建临时节点失败(若为恢复失败，恢复标记不变，等下周期重新恢复)
+            PLOG_ERROR("create %s failed(%d)", holder->_node_info._path.c_str(), rc);
         }
         if (holder->_cb != NULL)
         {
@@ -962,6 +991,38 @@ void ZookeeperClient::EphemeralNodeCreateCallback(int rc, const char *value, con
         }
         delete holder;
     }
+}
+
+void ZookeeperClient::ResumeEphemeralNode()
+{
+    if (m_last_resume_time == 0) {
+        return;
+    }
+
+    int64_t now = TimeUtility::GetCurrentMS();
+    if (m_last_resume_time + m_time_out_ms > now) {
+        // 恢复重试周期和会话超时时间保持一致
+        return;
+    }
+
+    int resume_num = 0;
+    for (std::set<EphemeralNodeInfo>::iterator it = m_ephemeral_node.begin() ;
+        it != m_ephemeral_node.end() ; ++it)
+    {
+        // 对恢复失败的进行重新恢复
+        if (it->_state == kNODE_RESUME) {
+            ACreate(it->_path.c_str(), it->_value.c_str(), it->_value.length(),
+                &(it->_acl_vec), ZOO_EPHEMERAL, NULL);
+            resume_num++;
+        }
+    }
+
+    if (resume_num > 0) {
+        m_last_resume_time = now;
+    } else {
+        m_last_resume_time = 0;
+    }
+    PLOG_INFO("resume %d nodes", resume_num);
 }
 
 } // namespace pebble

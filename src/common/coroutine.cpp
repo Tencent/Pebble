@@ -156,7 +156,41 @@ void FreeEpoll(stCoEpoll_t *ctx) {
 }
 
 
-static stCoRoutineEnv_t* g_arrCoEnvPerThread[102400] = {0};
+static stCoRoutineEnv_t** g_CoEnvArrayForThread = NULL;
+static void InitCoEnv() {
+    if (g_CoEnvArrayForThread != NULL) {
+        return;
+    }
+
+    int max_pid = 102400;
+    char file[] = "/proc/sys/kernel/pid_max";
+    FILE* pid_max = fopen(file, "r");
+    if (pid_max != NULL) {
+        fscanf(pid_max, "%d", &max_pid);
+        fclose(pid_max);
+    } else {
+        PLOG_ERROR("open %s failed : %s", file, strerror(errno));
+    }
+    
+    g_CoEnvArrayForThread = (stCoRoutineEnv_t**)calloc(max_pid, sizeof(stCoRoutineEnv_t*));
+}
+static void FiniCoEnv() {
+    free(g_CoEnvArrayForThread);
+    g_CoEnvArrayForThread = NULL;
+}
+static stCoRoutineEnv_t* GetCoEnv(int pid) {
+    if (g_CoEnvArrayForThread == NULL) {
+        InitCoEnv();
+    }
+    return g_CoEnvArrayForThread[pid];
+}
+static void SetCoEnv(int pid, stCoRoutineEnv_t* env) {
+    if (g_CoEnvArrayForThread == NULL) {
+        InitCoEnv();
+    }
+    g_CoEnvArrayForThread[pid] = env;
+}
+
 static pid_t GetPid()
 {
     static __thread pid_t pid = 0;
@@ -232,15 +266,14 @@ coroutine_open(uint32_t stack_size) {
         stack_size = 256 * 1024;
     }
     pid_t pid = GetPid();
-    stCoRoutineEnv_t *env = g_arrCoEnvPerThread[pid];
+    stCoRoutineEnv_t *env = GetCoEnv(pid);
     if (env) {
         return env->co_schedule;
     }
 
     void* p = calloc(1, sizeof(stCoRoutineEnv_t));
-    g_arrCoEnvPerThread[pid] = reinterpret_cast<stCoRoutineEnv_t*>(p);
-
-    env = g_arrCoEnvPerThread[pid];
+    env = reinterpret_cast<stCoRoutineEnv_t*>(p);
+    SetCoEnv(pid, env);
     PLOG_INFO("init pid %ld env %p\n", (long)pid, env);
 
     struct schedule *S = new schedule;
@@ -265,7 +298,7 @@ void coroutine_close(struct schedule *S) {
     }
 
     pid_t pid = GetPid();
-    stCoRoutineEnv_t *env = g_arrCoEnvPerThread[pid];
+    stCoRoutineEnv_t *env = GetCoEnv(pid);
     if (env == NULL) {
         return;
     }
@@ -292,7 +325,7 @@ void coroutine_close(struct schedule *S) {
     free(env);
     env = NULL;
 
-    g_arrCoEnvPerThread[pid] = 0;
+    SetCoEnv(pid, NULL);
 }
 int64_t coroutine_new(struct schedule *S, cxx::function<void()>& std_func) {
     if (NULL == S) {
@@ -904,7 +937,7 @@ static short EpollEvent2Poll(uint32_t events) {
 }
 
 stCoRoutineEnv_t *co_get_curr_thread_env() {
-    return g_arrCoEnvPerThread[GetPid()];
+    return GetCoEnv(GetPid());
 }
 
 void OnPollProcessEvent(stTimeoutItem_t * ap)

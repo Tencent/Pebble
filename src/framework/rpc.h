@@ -92,6 +92,7 @@ struct RpcHead {
         m_version       = kVERSION_0;
         m_message_type  = kRPC_EXCEPTION;
         m_session_id    = 0;
+        m_arrived_ms    = -1;
         m_dst           = NULL;
     }
     RpcHead(const RpcHead& rhs) {
@@ -99,6 +100,7 @@ struct RpcHead {
         m_message_type  = rhs.m_message_type;
         m_session_id    = rhs.m_session_id;
         m_function_name = rhs.m_function_name;
+        m_arrived_ms    = rhs.m_arrived_ms;
         m_dst           = rhs.m_dst;
     }
 
@@ -107,7 +109,8 @@ struct RpcHead {
     uint64_t    m_session_id;
     std::string m_function_name;
 
-    IProcessor* m_dst; // 非消息相关，标示消息来源模块，响应原路返回
+    int64_t     m_arrived_ms; // 消息到达时间
+    IProcessor* m_dst;        // 非消息相关，标示消息来源模块，响应原路返回
 };
 
 /// @brief RPC异常结构定义
@@ -154,11 +157,6 @@ public:
     /// @brief 实现Processor接口，返回动态资源使用情况
     virtual void GetResourceUsed(cxx::unordered_map<std::string, int64_t>* resource_info);
 
-    /// @brief 获取最近一次消息来源的handle，一般用于反向RPC
-    virtual int64_t GetLatestMsgHandle() {
-        return m_latest_handle;
-    }
-
     /// @brief 添加RPC请求处理函数(RPC服务)
     /// @param name RPC请求服务的名字
     /// @param on_request 请求处理函数
@@ -201,8 +199,7 @@ public:
                     uint32_t buff_len);
 
 public:
-    // TODO: 改成可配置
-    static const int32_t REQ_PROC_TIMEOUT_MS = 20 * 1000; // 20s
+    static const uint32_t REQ_PROC_TIMEOUT_MS = 20 * 1000; // 20s
 
     /// @note 内部使用，用户无需关注
     int32_t ProcessRequestImp(int64_t handle, const RpcHead& rpc_head,
@@ -211,6 +208,11 @@ public:
     /// @note 内部使用，用户无需关注
     uint64_t GenSessionId() {
         return m_session_id++;
+    }
+
+    /// @note 内部使用，用户无需关注
+    void SetProcRequestTimeoutMS(uint32_t proc_req_timeout_ms) {
+        m_proc_req_timeout_ms = proc_req_timeout_ms;
     }
 
 protected:
@@ -288,7 +290,7 @@ private:
     SequenceTimer* m_timer;
     uint64_t m_session_id;
     cxx::unordered_map< uint64_t, cxx::shared_ptr<RpcSession> > m_session_map;
-    int64_t  m_latest_handle;
+    uint32_t m_proc_req_timeout_ms;
 };
 
 } // namespace pebble

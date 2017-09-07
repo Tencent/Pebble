@@ -130,15 +130,14 @@ void StatManager::WriteLog() {
     int32_t len = 0;
 
     struct mallinfo meminfo = mallinfo();
-    len += snprintf(buff + len, BUFF_LEN - len, "Pebble Resource Stat(cycle = 1s)\n"
-        "\tmallocinfo{arena:%d,ordblks:%d,smblks:%d,hblks:%d,hblkhd:%d,usmblks:%d,fsmblks:%d,"
+    len += snprintf(buff + len, BUFF_LEN - len, "\nPebble Resource Stat(cycle = 1s)\n"
+        "\tmeminfo{arena:%d,ordblks:%d,smblks:%d,hblks:%d,hblkhd:%d,fsmblks:%d,"
         "uordblks:%d,fordblks:%d,keepcost:%d}\n",
         meminfo.arena,
         meminfo.ordblks,
         meminfo.smblks,
         meminfo.hblks,
         meminfo.hblkhd,
-        meminfo.usmblks,
         meminfo.fsmblks,
         meminfo.uordblks,
         meminfo.fordblks,
@@ -193,6 +192,8 @@ void StatManager::WriteLog() {
         len += snprintf(buff + len, BUFF_LEN - len, "}\n");
     }
 
+    len += snprintf(buff + len, BUFF_LEN - len, "\n\n");
+
     if (len > 0) {
         PLOG_STAT(buff);
     }
@@ -201,6 +202,11 @@ void StatManager::WriteLog() {
 void StatManager::ReportGdataByCycle() {
     if (m_report_gdata_type != kREPORT_BY_CYCLE) {
         return;
+    }
+
+    for (std::set<std::string>::iterator it = m_report_names.begin();
+        it != m_report_names.end(); ++it) {
+        m_stat->AddMessageItem(*it);
     }
 
     const MessageStatResult* message_result = m_stat->GetAllMessageResults();

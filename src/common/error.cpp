@@ -12,7 +12,6 @@
  */
 
 #include "common/error.h"
-#include "common/platform.h"
 
 
 namespace pebble {

@@ -146,7 +146,7 @@ int32_t PebbleClient::Attach(Router* router, IProcessor* processor) {
     }
 
     router->SetOnAddressChanged(cxx::bind(&PebbleClient::OnRouterAddressChanged, this,
-        cxx::placeholders::_1, processor));
+        router, cxx::placeholders::_1, processor));
     return 0;
 }
 
@@ -255,9 +255,10 @@ int32_t PebbleClient::Update() {
         }
     }
 
-    cxx::unordered_map<int64_t, IProcessor*>::iterator it = m_processor_map.begin();
-    for (; it != m_processor_map.end(); ++it) {
-        num += it->second->Update();
+    for (int32_t i = 0; i < kPROTOCOL_TYPE_BUTT; ++i) {
+        if (m_processor_array[i]) {
+            m_processor_array[i]->Update();
+        }
     }
 
     if (m_timer) {
@@ -286,8 +287,7 @@ int32_t PebbleClient::ProcessMessage() {
 
     const uint8_t* msg = NULL;
     uint32_t msg_len   = 0;
-    MsgExternInfo msg_info;
-    ret = Message::Peek(handle, &msg, &msg_len, &msg_info);
+    ret = Message::Peek(handle, &msg, &msg_len, &m_last_msg_info);
     do {
         if (kMESSAGE_RECV_EMPTY == ret) {
             break;
@@ -297,14 +297,14 @@ int32_t PebbleClient::ProcessMessage() {
             break;
         }
 
-        cxx::unordered_map<int64_t, IProcessor*>::iterator it = m_processor_map.find(msg_info._self_handle);
+        cxx::unordered_map<int64_t, IProcessor*>::iterator it = m_processor_map.find(m_last_msg_info._self_handle);
         if (m_processor_map.end() == it) {
             Message::Pop(handle);
-            PLOG_ERROR("handle(%ld) not attach a processor remote(%ld)", msg_info._self_handle, msg_info._remote_handle);
+            PLOG_ERROR("handle(%ld) not attach a processor remote(%ld)", m_last_msg_info._self_handle, m_last_msg_info._remote_handle);
             break;
         }
 
-        it->second->OnMessage(msg_info._remote_handle, msg, msg_len, &msg_info, 0);
+        it->second->OnMessage(m_last_msg_info._remote_handle, msg, msg_len, &m_last_msg_info, 0);
         Message::Pop(handle);
     } while (0);
 
@@ -374,12 +374,27 @@ int32_t PebbleClient::OnStatTimeout() {
     return m_stat_timer_ms;
 }
 
-void PebbleClient::OnRouterAddressChanged(const std::vector<int64_t>& handles,
-    IProcessor* processor) {
+void PebbleClient::OnRouterAddressChanged(Router* router,
+    const std::vector<int64_t>& handles, IProcessor* processor) {
 
-    for (std::vector<int64_t>::const_iterator it = handles.begin(); it != handles.end(); ++it) {
-        Attach(*it, processor);
+    cxx::unordered_map<Router*, std::vector<int64_t> >::iterator it =
+        m_router_handle_map.find(router);
+    if (it == m_router_handle_map.end()) {
+        for (std::vector<int64_t>::const_iterator hit = handles.begin(); hit != handles.end(); ++hit) {
+            Attach(*hit, processor);
+        }
+        m_router_handle_map[router] = handles;
+        return;
     }
+
+    // 采取简单策略，先把老的都detach，再attach新的
+    for (std::vector<int64_t>::iterator oit = it->second.begin(); oit != it->second.end(); ++oit) {
+        Detach(*oit);
+    }
+    for (std::vector<int64_t>::const_iterator nit = handles.begin(); nit != handles.end(); ++nit) {
+        Attach(*nit, processor);
+    }
+    it->second = handles;
 }
 
 void PebbleClient::StatCoroutine(Stat* stat) {
@@ -440,6 +455,16 @@ int32_t PebbleClient::MakeCoroutine(const cxx::function<void()>& routine) {
 
     return coid < 0 ? -1 : 0;
 }
+
+MsgExternInfo* PebbleClient::GetLastMessageInfo() {
+    return &m_last_msg_info;
+}
+
+int32_t PebbleClient::Detach(int64_t handle) {
+    int num = m_processor_map.erase(handle);
+    return num == 1 ? 0 : -1;
+}
+
 
 }  // namespace pebble
 

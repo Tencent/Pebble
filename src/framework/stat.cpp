@@ -66,6 +66,20 @@ int32_t Stat::AddMessageItem(const std::string& name, int32_t result, int32_t ti
     return 0;
 }
 
+int32_t Stat::AddMessageItem(const std::string& name) {
+    if (name.empty()) {
+        return -1;
+    }
+
+    MessageStatItem& item = m_message_stat_result[name];
+    MessageStatTempData& temp = m_message_stat_temp[name];
+    temp._result = &item;
+
+    item._result[0];
+
+    return 0;
+}
+
 const ResourceStatItem* Stat::GetResourceResultByName(const std::string& name) {
     cxx::unordered_map<std::string, ResourceStatTempData>::iterator it;
     it = m_resource_stat_temp.find(name);

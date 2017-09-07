@@ -18,6 +18,7 @@
 
 #include "common/log.h"
 #include "common/platform.h"
+#include "framework/message.h"
 #include "framework/options.h"
 #include "framework/pebble_rpc.h"
 #include "framework/router.h"
@@ -149,6 +150,10 @@ public:
     /// @return <0 失败
     int32_t MakeCoroutine(const cxx::function<void()>& routine);
 
+    /// @brief 返回最近一个消息的详细信息
+    /// @return 保证非空
+    MsgExternInfo* GetLastMessageInfo();
+
 private:
     int32_t ProcessMessage();
 
@@ -162,11 +167,14 @@ private:
 
     int32_t OnStatTimeout();
 
-    void OnRouterAddressChanged(const std::vector<int64_t>& handles, IProcessor* processor);
+    void OnRouterAddressChanged(Router* router,
+        const std::vector<int64_t>& handles, IProcessor* processor);
 
     void StatCoroutine(Stat* stat);
 
     void StatProcessorResource(Stat* stat);
+
+    int32_t Detach(int64_t handle);
 
 private:
     Options            m_options;
@@ -178,8 +186,10 @@ private:
     Timer*             m_timer;
     uint32_t           m_stat_timer_ms; // 资源使用采样定时器，供统计用
     SessionMgr*        m_session_mgr;
+    MsgExternInfo      m_last_msg_info;
     cxx::unordered_map<int64_t, IProcessor*> m_processor_map;
     cxx::unordered_map<std::string, Router*> m_router_map;
+    cxx::unordered_map<Router*, std::vector<int64_t> > m_router_handle_map;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////

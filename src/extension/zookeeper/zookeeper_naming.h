@@ -75,7 +75,7 @@ public:
     /// @param refresh_time_ms 缓存的自动刷新时间，最小为5000
     /// @param invaild_time_ms 缓存的失效时间，最小为10000且大于刷新时间
     /// @return 0成功
-    int32_t SetCache(bool use_cache = true, int32_t refresh_time_ms = 300000, int32_t invaild_time_ms = 700000);
+    int32_t SetCache(bool use_cache = true, int32_t refresh_time_ms = 300000, int32_t invaild_time_ms = 1800000);
 
 public:
     // 实现Naming接口
@@ -169,7 +169,6 @@ private:
     void OnWatchNameReturn(int rc, const std::string& name,
         const WatchFunc& wc, const CbReturnCode& cb);
 
-    int32_t m_time_out_ms;
     std::string m_zk_path;
 
     bool m_use_cache;

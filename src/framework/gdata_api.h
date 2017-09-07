@@ -127,20 +127,22 @@ public:
     /*
      * 写流水日志
      * @param[in] water_data 流水日志结构体
-     * @return 
      * */
     static void LogWater(IN const SWaterData& water_data);
 
     /*
      * 写告警日志
      * @param[in] water_data 告警日志结构体
-     * @return 
      * */
     static void LogMonitor(IN const SMonitorData& monitor_data);
 
     /*
+     * 日志落地
+     * */
+    static void Flush();
+
+    /*
      * 销毁 Log
-     * @return 
      * */
     static void FiniDataLog();
 };

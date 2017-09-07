@@ -45,6 +45,18 @@ void RpcEventHandler::ResponseProcComplete(const std::string& name,
     }
 }
 
+void RpcEventHandler::AddNameToStat(const std::string& name) {
+    if (m_stat_manager) {
+        m_stat_manager->AddReportName(name);
+    }
+}
+
+void RpcEventHandler::RemoveNameFromStat(const std::string& name) {
+    if (m_stat_manager) {
+        m_stat_manager->RemoveReportName(name);
+    }
+}
+
 void BroadcastEventHandler::RequestProcComplete(const std::string& name,
     int32_t result, int32_t time_cost_ms) {
     if (m_stat_manager) {

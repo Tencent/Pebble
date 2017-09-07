@@ -203,6 +203,16 @@ void CLogDataAPI::LogMonitor(IN const SMonitorData& monitor_data)
     }
 }
 
+void CLogDataAPI::Flush()
+{
+    if (roll_util_monitor) {
+        roll_util_monitor->Flush();
+    }
+    if (roll_util_water) {
+        roll_util_water->Flush();
+    }
+}
+
 void CLogDataAPI::FiniDataLog()
 {
     delete roll_util_monitor;

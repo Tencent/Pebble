@@ -90,10 +90,6 @@ public:
     /// @brief 是否TCP连接
     bool IsTcpTransport(uint64_t handle);
 
-    const char* GetLastError() {
-        return m_last_error;
-    }
-
     /// @brief 设置发送缓冲区列表最大长度
     void SetMaxSendListSize(uint32_t max_send_list_size);
 
@@ -108,26 +104,18 @@ private:
 
     void CloseAllConnections();
 
-    /// @return >0 成功 发送消息数
-    /// @return <0 失败 连接被关闭
-    int32_t SendData(uint64_t handle, const uint8_t* msg, uint32_t msg_len);
-
-    int32_t SendCacheData(uint64_t netaddr);
+    void SendCacheData(uint64_t netaddr, NetConnection* connection);
 
     int32_t RecvTcpData(uint64_t netaddr);
 
     int32_t RecvUdpData(uint64_t netaddr);
 
-    uint64_t GetSendHandle(uint64_t netaddr);
+    // 因message接口的限制，对于点对点通信方式先这样处理，后续优化
+    uint64_t GetLocalHandle(uint64_t netaddr);
+
+    void OnSocketError(uint64_t netaddr);
 
 private:
-    enum {
-        RECV_CONTINUE = 0,
-        RECV_END,
-    };
-
-private:
-    char   m_last_error[256];
     Epoll* m_epoll;
     NetIO* m_netio;
 

@@ -63,6 +63,9 @@ struct Options {
     std::string _bc_zk_host;        // zk地址，非reload生效
     uint32_t _bc_zk_timeout_ms;     // zk连接超时时间，单位ms，默认20000ms，非reload生效
 
+    // rpc
+    uint32_t _proc_req_timeout_ms; // 请求处理超时时间，超时未回响应就释放session
+
     Options();
     std::string ToString();
 };
@@ -75,6 +78,7 @@ extern const char* kSectionLog;         // [log]
 extern const char* kSectionStat;        // [stat]
 extern const char* kSectionFlowControl; // [flowcontrol]
 extern const char* kSectionBroadcast;   // [broadcast]
+extern const char* kSectionRpc;         // [rpc]
 
 
 // config name
@@ -116,6 +120,8 @@ extern const char* kBcRelayAddress;
 extern const char* kBcZkHost;
 extern const char* kBcZkTimeoutMs;
 
+// [rpc]
+extern const char* kProcReqTimeoutMs;
 
 // default values
 // [app]
@@ -153,6 +159,9 @@ extern const char* kBcZkTimeoutMs;
 
 // [broadcast]
 #define DEFAULT_BC_ZK_TIMEOUT_MS    20000
+
+// [rpc]
+#define DEFAULT_PROC_REQ_TIMEOUT_MS 20000
 
 }  // namespace pebble
 #endif   //  _PEBBLE_EXTENSION_OPTIONS_H_

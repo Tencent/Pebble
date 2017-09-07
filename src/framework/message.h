@@ -16,8 +16,9 @@
 #define _PEBBLE_COMMON_MESSAGE_H_
 
 #include <string>
-#include "common/platform.h"
 #include "common/error.h"
+#include "common/platform.h"
+
 
 namespace pebble {
 

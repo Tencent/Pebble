@@ -48,7 +48,7 @@ class INIReader {
                        int32_t default_value);
 
     uint32_t GetUInt32(const std::string& section, const std::string& name,
-                       uint32_t default_value); 
+                       uint32_t default_value);
 
     int64_t GetInt64(const std::string& section, const std::string& name,
                        int64_t default_value);

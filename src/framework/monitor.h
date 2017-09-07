@@ -54,7 +54,7 @@ public:
     }
 
     virtual uint32_t IsOverLoad() {
-        return m_task_num > m_task_threshold ? kTASK_OVERLOAD : kNO_OVERLOAD;
+        return m_task_num >= m_task_threshold ? kTASK_OVERLOAD : kNO_OVERLOAD;
     }
 
 private:
@@ -99,7 +99,10 @@ public:
         uint32_t overload = kNO_OVERLOAD;
         for (std::vector<IMonitor*>::iterator it = m_monitors.begin();
             it != m_monitors.end(); ++it) {
-            overload |= (*it)->IsOverLoad();
+            overload = (*it)->IsOverLoad();
+            if (overload) {
+                break;
+            }
         }
         return overload;
     }

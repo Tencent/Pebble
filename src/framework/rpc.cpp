@@ -53,7 +53,7 @@ public:
 IRpc::IRpc() {
     m_session_id        = 0;
     m_timer             = new SequenceTimer();
-    m_latest_handle     = -1;
+    m_proc_req_timeout_ms = REQ_PROC_TIMEOUT_MS;
 }
 
 IRpc::~IRpc() {
@@ -94,6 +94,7 @@ int32_t IRpc::OnMessage(int64_t handle, const uint8_t* msg,
     }
 
     if (msg_info) {
+        head.m_arrived_ms = msg_info->_msg_arrived_ms;
         head.m_dst = (IProcessor*)(msg_info->_src);
     }
     const uint8_t* data = msg + head_len;
@@ -104,11 +105,11 @@ int32_t IRpc::OnMessage(int64_t handle, const uint8_t* msg,
         case kRPC_CALL:
             if (is_overload != 0) {
                 ret = ResponseException(handle, kRPC_SYSTEM_OVERLOAD_BASE - is_overload, head);
-                RequestProcComplete(head.m_function_name, kRPC_SYSTEM_OVERLOAD_BASE - is_overload, 0);
+                RequestProcComplete(head.m_function_name, kRPC_SYSTEM_OVERLOAD_BASE - is_overload,
+                    head.m_arrived_ms > 0 ? TimeUtility::GetCurrentMS() - head.m_arrived_ms : 0);
                 break;
             }
         case kRPC_ONEWAY:
-            m_latest_handle = handle;
             ret = ProcessRequest(handle, head, data, data_len);
             break;
 
@@ -136,10 +137,17 @@ int32_t IRpc::AddOnRequestFunction(const std::string& name, const OnRpcRequest& 
         return kRPC_FUNCTION_NAME_EXISTED;
     }
 
+    if (m_event_handler) {
+        m_event_handler->AddNameToStat("_recv_rpc_" + name);
+    }
+
     return kRPC_SUCCESS;
 }
 
 int32_t IRpc::RemoveOnRequestFunction(const std::string& name) {
+    if (m_event_handler) {
+        m_event_handler->RemoveNameFromStat("_recv_rpc_" + name);
+    }
     return m_service_map.erase(name) == 1 ? kRPC_SUCCESS : kRPC_FUNCTION_NAME_UNEXISTED;
 }
 
@@ -325,14 +333,16 @@ int32_t IRpc::ProcessRequestImp(int64_t handle, const RpcHead& rpc_head,
     if (m_service_map.end() == it) {
         PLOG_ERROR_N_EVERY_SECOND(1, "%s's request proc func not found", rpc_head.m_function_name.c_str());
         ResponseException(handle, kRPC_UNSUPPORT_FUNCTION_NAME, rpc_head);
-        RequestProcComplete(rpc_head.m_function_name, kRPC_UNSUPPORT_FUNCTION_NAME, 0);
+        RequestProcComplete(rpc_head.m_function_name, kRPC_UNSUPPORT_FUNCTION_NAME,
+            rpc_head.m_arrived_ms > 0 ? TimeUtility::GetCurrentMS() - rpc_head.m_arrived_ms : 0);
         return kRPC_UNSUPPORT_FUNCTION_NAME;
     }
 
     if (kRPC_ONEWAY == rpc_head.m_message_type) {
         cxx::function<int32_t(int32_t, const uint8_t*, uint32_t)> rsp; // NOLINT
         int32_t ret = (it->second)(buff, buff_len, rsp);
-        RequestProcComplete(rpc_head.m_function_name, ret, 0);
+        RequestProcComplete(rpc_head.m_function_name, ret,
+            rpc_head.m_arrived_ms > 0 ? TimeUtility::GetCurrentMS() - rpc_head.m_arrived_ms : 0);
         return ret;
     }
 
@@ -344,8 +354,8 @@ int32_t IRpc::ProcessRequestImp(int64_t handle, const RpcHead& rpc_head,
     session->m_server_side = true;
 
     TimeoutCallback cb     = cxx::bind(&IRpc::OnTimeout, this, session->m_session_id);
-    session->m_timerid     = m_timer->StartTimer(REQ_PROC_TIMEOUT_MS, cb);
-    session->m_start_time  = TimeUtility::GetCurrentMS();
+    session->m_timerid     = m_timer->StartTimer(m_proc_req_timeout_ms, cb);
+    session->m_start_time  = rpc_head.m_arrived_ms > 0 ? rpc_head.m_arrived_ms : TimeUtility::GetCurrentMS();
 
     m_session_map[session->m_session_id] = session;
 
