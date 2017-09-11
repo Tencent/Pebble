@@ -28,20 +28,16 @@ void RpcEventHandler::ReportTransportQuality(int64_t handle, int32_t ret_code,
 void RpcEventHandler::RequestProcComplete(const std::string& name,
     int32_t result, int32_t time_cost_ms) {
     if (m_stat_manager) {
-        std::string message_name("_recv_rpc_");
-        message_name.append(name);
-        m_stat_manager->GetStat()->AddMessageItem(message_name, result, time_cost_ms);
-        m_stat_manager->Report2Gdata(message_name, result, time_cost_ms);
+        m_stat_manager->GetStat()->AddMessageItem(name, result, time_cost_ms);
+        m_stat_manager->Report2Gdata(name, result, time_cost_ms);
     }
 }
 
 void RpcEventHandler::ResponseProcComplete(const std::string& name,
     int32_t result, int32_t time_cost_ms) {
     if (m_stat_manager) {
-        std::string message_name("_send_rpc_");
-        message_name.append(name);
-        m_stat_manager->GetStat()->AddMessageItem(message_name, result, time_cost_ms);
-        m_stat_manager->Report2Gdata(message_name, result, time_cost_ms);
+        m_stat_manager->GetStat()->AddMessageItem(name, result, time_cost_ms);
+        m_stat_manager->Report2Gdata(name, result, time_cost_ms);
     }
 }
 

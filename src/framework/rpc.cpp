@@ -138,7 +138,7 @@ int32_t IRpc::AddOnRequestFunction(const std::string& name, const OnRpcRequest& 
     }
 
     if (m_event_handler) {
-        m_event_handler->AddNameToStat("_recv_rpc_" + name);
+        m_event_handler->AddNameToStat(name);
     }
 
     return kRPC_SUCCESS;
@@ -146,7 +146,7 @@ int32_t IRpc::AddOnRequestFunction(const std::string& name, const OnRpcRequest& 
 
 int32_t IRpc::RemoveOnRequestFunction(const std::string& name) {
     if (m_event_handler) {
-        m_event_handler->RemoveNameFromStat("_recv_rpc_" + name);
+        m_event_handler->RemoveNameFromStat(name);
     }
     return m_service_map.erase(name) == 1 ? kRPC_SUCCESS : kRPC_FUNCTION_NAME_UNEXISTED;
 }
