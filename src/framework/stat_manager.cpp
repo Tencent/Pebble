@@ -160,7 +160,7 @@ void StatManager::WriteLog() {
     float _message_per_second = 0;
     float _failurate_rate = 0;
     if (m_report_cycle_s != 0) {
-        _message_per_second = m_stat->GetAllMessageCounts() / m_report_cycle_s;
+        _message_per_second = (float)m_stat->GetAllMessageCounts() / m_report_cycle_s;
     }
     if (m_stat->GetAllMessageCounts() != 0) {
         _failurate_rate = 100.f * m_stat->GetAllFailureMessageCounts() / m_stat->GetAllMessageCounts();

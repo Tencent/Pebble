@@ -29,7 +29,7 @@
 
 /// @brief 格式化输出log信息到buff
 #define LOG_MESSAGE(buff, buff_len, fmt, ...) \
-    snprintf((buff), (buff_len), "(%s:%d)(%s)"fmt, \
+    snprintf((buff), (buff_len), "(%s:%d)(%s)" fmt, \
     __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__)
 
 

@@ -23,7 +23,11 @@
 
 #include <stdint.h>
 
-#if __cplusplus < 201103L
+// 源码依赖场景下，可以适配编译器版本
+// 包依赖场景下，统一使用std::tr1，避免c++11编译器编译时pebble的头文件和lib不一致
+#define BUILD_WITH_SRC 0
+
+#if __cplusplus < 201103L || !(BUILD_WITH_SRC)
 #include <tr1/functional>
 #include <tr1/memory>
 #include <tr1/unordered_map>
@@ -76,7 +80,7 @@
 namespace pebble {
 namespace stdcxx {
 
-#if __cplusplus < 201103L
+#if __cplusplus < 201103L || !(BUILD_WITH_SRC)
 
 using ::std::tr1::function;
 using ::std::tr1::bind;
