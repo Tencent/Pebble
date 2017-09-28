@@ -126,7 +126,11 @@ std::string GetINHeaderIncludes(File* file, const Parameters& params) {
     std::map<std::string, std::string> vars;
 
     std::vector<std::string> headers;
+#ifndef __RPC_CLIENT__
     headers.push_back("framework/pebble_rpc.h");
+#else
+    headers.push_back("pebble_rpc.h");
+#endif
     headers.push_back(file->filename_without_path() + file->message_header_ext()); // filename.pb.h
     PrintIncludes(printer.get(), headers, params);
     printer->Print("\n");
@@ -158,6 +162,7 @@ void PrintINHeaderClientMethod(
     (*vars)["Response"] = method->output_type_name();
 
     if (method->NoStreaming()) {
+#ifndef __RPC_CLIENT__
         // 同步
         printer->Print(*vars,
             "virtual int32_t $Method$(const $Request$& request, $Response$* response) = 0;\n");
@@ -166,6 +171,7 @@ void PrintINHeaderClientMethod(
             "virtual int32_t Parallel$Method$(const $Request$& request,"
             " int32_t* ret_code, $Response$* response,"
             " uint32_t* num_called, uint32_t* num_parallel) = 0;\n");
+#endif
         // 异步
         printer->Print(*vars,
             "virtual void $Method$(const $Request$& request, "
@@ -196,18 +202,20 @@ void PrintHeaderClientMethod(
             printer->Print("\n");
         }
         if (method->NoStreaming()) {
+#ifndef __RPC_CLIENT__
             // 同步
-            printer->Print(*vars, "// $Method$同步调用，返回0时调用成功，非0失败\n");
+            printer->Print(*vars, "/* $Method$同步调用，返回0时调用成功，非0失败 */\n");
             printer->Print(*vars,
                 "virtual int32_t $Method$(const $Request$& request, $Response$* response);\n");
             // 并行
-            printer->Print(*vars, "// $Method$并行调用，一般通过Pebble并行模块(pebble::AddCall/WhenAll)来使用此接口\n");
+            printer->Print(*vars, "/* $Method$并行调用，一般通过Pebble并行模块(pebble::AddCall/WhenAll)来使用此接口 */\n");
             printer->Print(*vars,
                 "virtual int32_t Parallel$Method$(const $Request$& request,"
                 " int32_t* ret_code, $Response$* response,"
                 " uint32_t* num_called, uint32_t* num_parallel);\n");
+#endif
             // 异步
-            printer->Print(*vars, "// $Method$异步调用，回调函数第一个参数为RPC调用结果，0为成功，非0失败\n");
+            printer->Print(*vars, "/* $Method$异步调用，回调函数第一个参数为RPC调用结果，0为成功，非0失败 */\n");
             printer->Print(*vars,
                 "virtual void $Method$(const $Request$& request, "
                 "const cxx::function<void(int32_t ret_code, const $Response$& response)>& cb);\n");
@@ -220,12 +228,14 @@ void PrintHeaderClientMethod(
         }
     } else {
         if (method->NoStreaming()) {
+#ifndef __RPC_CLIENT__
             printer->Print(*vars,
                 "int32_t recv_$Method$_sync(int32_t ret, const uint8_t* buff, uint32_t buff_len,"
                 " $Response$* response);\n");
             printer->Print(*vars,
                 "int32_t recv_$Method$_parallel(int32_t ret, const uint8_t* buff, uint32_t buff_len,"
                 " int32_t* ret_code, $Response$* response);\n");
+#endif
             printer->Print(*vars,
                 "int32_t recv_$Method$(int32_t ret, const uint8_t* buff, uint32_t buff_len,"
                 " cxx::function<void(int ret_code, const $Response$& response)>& cb);\n");
@@ -330,7 +340,9 @@ void PrintINHeaderService(Printer* printer, const Service* service,
     printer->Print("int64_t m_handle;\n");
     printer->Print("cxx::function<int64_t(uint64_t)> m_route_func;\n");
     printer->Print("uint64_t m_route_key;\n");
+#ifndef __RPC_CLIENT__
     printer->Print("std::string m_channel_name;\n");
+#endif
     printer->Print("cxx::unordered_map<std::string, uint32_t> m_methods;\n");
     printer->Outdent();
 
@@ -383,7 +395,7 @@ void PrintHeaderService(Printer* printer, const Service* service,
     }
     printer->Print(*vars, "class $Service$Client : public $Service$ClientInterface {\n"
         "public:\n"
-        "    // IDL定义接口，每个接口对应生成3个方法，分别是同步调用、并行调用、异步调用\n\n");
+        "    /* IDL定义接口，每个接口对应生成3个方法，分别是同步调用、并行调用、异步调用 */\n\n");
 
     printer->Indent();
     for (int i = 0; i < service->method_count(); ++i) {
@@ -392,20 +404,22 @@ void PrintHeaderService(Printer* printer, const Service* service,
     printer->Outdent();
 
     printer->Print("\npublic:\n"
-        "    // 功能接口\n\n");
+        "    /* 功能接口 */\n\n");
     printer->Indent();
     printer->Print(*vars, "$Service$Client(::pebble::PebbleRpc* rpc);\n");
     printer->Print(*vars, "virtual ~$Service$Client();\n\n");
-    printer->Print("// 设置连接句柄，RPC请求通过此句柄对应的连接发送\n");
+    printer->Print("/* 设置连接句柄，RPC请求通过此句柄对应的连接发送 */\n");
     printer->Print("void SetHandle(int64_t handle);\n\n");
-    printer->Print("// 设置路由函数，连接的选择交给路由回调函数处理，RPC请求通过路由回调函数选择的连接发送\n");
-    printer->Print("// 设置路由回调函数后，不再使用SetHandle设置的连接句柄\n");
+    printer->Print("/* 设置路由函数，连接的选择交给路由回调函数处理，RPC请求通过路由回调函数选择的连接发送 */\n");
+    printer->Print("/* 设置路由回调函数后，不再使用SetHandle设置的连接句柄 */\n");
     printer->Print("void SetRouteFunction(const cxx::function<int64_t(uint64_t key)>& route_callback);\n\n");
-    printer->Print("// 设置路由key，如使用取模或哈希路由策略时使用\n");
+    printer->Print("/* 设置路由key，如使用取模或哈希路由策略时使用 */\n");
     printer->Print("void SetRouteKey(uint64_t route_key);\n\n");
-    printer->Print("// 设置广播的频道名字，设置了频道后Client将所有的RPC请求按广播处理，广播至channel_name\n");
+#ifndef __RPC_CLIENT__
+    printer->Print("/* 设置广播的频道名字，设置了频道后Client将所有的RPC请求按广播处理，广播至channel_name */\n");
     printer->Print("void SetBroadcast(const std::string& channel_name);\n\n");
-    printer->Print("// 设置RPC请求超时时间(单位ms)，未指定方法名时对所有方法生效，指定方法名时只对指定方法生效，默认的超时时间为10s\n");
+#endif
+    printer->Print("/* 设置RPC请求超时时间(单位ms)，未指定方法名时对所有方法生效，指定方法名时只对指定方法生效，默认的超时时间为10s */\n");
     printer->Print("int SetTimeout(uint32_t timeout_ms, const char* method_name = NULL);\n\n");
 
     printer->Outdent();
@@ -445,7 +459,7 @@ void PrintHeaderServiceEx(Printer* printer, const Service* service,
     (*vars)["Service"] = service->name();
 
     // 生成内部使用模版方法
-    printer->Print("// 内部使用，用户无需关注\n");
+    printer->Print("/* 内部使用，用户无需关注 */\n");
     printer->Print("namespace pebble {\n");
     printer->Print("template<typename Class> class GenServiceHandler;\n\n");
     printer->Print("template<>\n");
@@ -638,6 +652,7 @@ void PrintSourceClientMethod(Printer* printer, const Method* method,
     (*vars)["Response"] = method->output_type_name();
 
     if (is_public) {
+#ifndef __RPC_CLIENT__
         // 同步调用
         printer->Print(*vars, "int32_t $Service$Client::$Method$("
             "const $Request$& request, $Response$* response) {\n");
@@ -720,7 +735,7 @@ void PrintSourceClientMethod(Printer* printer, const Method* method,
 
         printer->Outdent();
         printer->Print("}\n\n");
-        
+#endif
         // 异步调用
         printer->Print(*vars,
             "void $Service$Client::$Method$(const $Request$& request, "
@@ -750,8 +765,10 @@ void PrintSourceClientMethod(Printer* printer, const Method* method,
         printer->Outdent();
         printer->Print("}\n\n");
 
+#ifndef __RPC_CLIENT__
         printer->Print("if (m_imp->m_channel_name.empty()) {\n");
         printer->Indent();
+#endif
         printer->Print(*vars, "::pebble::OnRpcResponse on_rsp = cxx::bind(&$Service$ClientImp::recv_$Method$, m_imp,\n");
         printer->Print("    cxx::placeholders::_1, cxx::placeholders::_2, cxx::placeholders::_3, cb);\n");
         printer->Print(*vars, "int32_t __ret = m_imp->m_client->SendRequest(m_imp->GetHandle(), __head, __buff, __size, on_rsp, m_imp->m_methods[\"$Method$\"]);\n");
@@ -762,6 +779,7 @@ void PrintSourceClientMethod(Printer* printer, const Method* method,
         printer->Print("return;\n");
         printer->Outdent();
         printer->Print("}\n");
+#ifndef __RPC_CLIENT__
         printer->Outdent();
         printer->Print("} else {\n");
         printer->Indent();
@@ -775,11 +793,13 @@ void PrintSourceClientMethod(Printer* printer, const Method* method,
         printer->Print("}\n");
         printer->Outdent();
         printer->Print("}\n\n");
+#endif
 
         printer->Outdent();
         printer->Print("}\n\n");
 
     } else {
+#ifndef __RPC_CLIENT__
         // 同步调用响应处理
         printer->Print(*vars,
             "int32_t $Service$ClientImp::recv_$Method$_sync(int32_t ret, const uint8_t* buff, uint32_t buff_len,"
@@ -818,7 +838,7 @@ void PrintSourceClientMethod(Printer* printer, const Method* method,
 
         printer->Outdent();
         printer->Print("}\n\n");
-
+#endif
         // 异步调用响应处理
         printer->Print(*vars,
             "int32_t $Service$ClientImp::recv_$Method$(int32_t ret, const uint8_t* buff, uint32_t buff_len,"
@@ -945,13 +965,13 @@ void PrintSourceService(Printer* printer, const Service* service,
     printer->Print("m_imp->m_route_key = route_key;\n");
     printer->Outdent();
     printer->Print("}\n\n");
-
+#ifndef __RPC_CLIENT__
     printer->Print(*vars, "void $Service$Client::SetBroadcast(const std::string& channel_name) {\n");
     printer->Indent();
     printer->Print("m_imp->m_channel_name = channel_name;\n");
     printer->Outdent();
     printer->Print("}\n\n");
-
+#endif
     printer->Print(*vars, "int $Service$Client::SetTimeout(uint32_t timeout_ms, const char* method_name) {\n");
     printer->Indent();
 

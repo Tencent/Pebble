@@ -22,7 +22,7 @@
  */
 
 /*
- * 手机端的代码生成和后台分开
+ * 客户端生成代码和服务端工具分开
  */
 
 #include <cassert>
@@ -58,41 +58,15 @@ class t_cpp_client_generator : public t_oop_generator {
       const std::string& option_string)
     : t_oop_generator(program)
   {
-    (void) option_string;
-    std::map<std::string, std::string>::const_iterator iter;
-
-    //iter = parsed_options.find("pure_enums");
-    //gen_pure_enums_ = (iter != parsed_options.end());
-    gen_pure_enums_ = true;
-
-
-    //iter = parsed_options.find("dense");
-    //gen_dense_ = (iter != parsed_options.end());
     gen_dense_ = false;
-
-    //iter = parsed_options.find("include_prefix");
-    //use_include_prefix_ = (iter != parsed_options.end());
     use_include_prefix_ = false;
-
-    //iter = parsed_options.find("cob_style");
-    //gen_cob_style_ = (iter != parsed_options.end());
-    gen_cob_style_ = true;
-
-    //iter = parsed_options.find("no_client_completion");
-    //gen_no_client_completion_ = (iter != parsed_options.end());
     gen_no_client_completion_ = false;
-
-    //iter = parsed_options.find("no_default_operators");
-    //gen_no_default_operators_ = (iter != parsed_options.end());
     gen_no_default_operators_ = false;
-
-    //iter = parsed_options.find("templates");
-    //gen_templates_ = (iter != parsed_options.end());
     gen_templates_ = false;
-
-    //gen_templates_only_ =
-    //  (iter != parsed_options.end() && iter->second == "only");
     gen_templates_only_ = false;
+
+    gen_cob_style_ = true;
+    gen_pure_enums_ = true;
 
     out_dir_base_ = "gen-cpp-client";
   }
@@ -104,9 +78,6 @@ class t_cpp_client_generator : public t_oop_generator {
   void init_generator();
   void close_generator();
 
-  void generate_consts(std::vector<t_const*> consts);
-
-  void generate_consts_in_services(std::vector<t_const*> consts);
 
   /**
    * Program-level generation functions
@@ -114,6 +85,8 @@ class t_cpp_client_generator : public t_oop_generator {
 
   void generate_typedef(t_typedef* ttypedef);
   void generate_enum(t_enum* tenum);
+  void generate_const(t_const* tconst);
+  std::string get_const_value(t_type* type, t_const_value* value);
   void generate_forward_declaration(t_struct* tstruct);
   void generate_struct(t_struct* tstruct) {
     generate_cpp_struct(tstruct, false);
@@ -144,7 +117,6 @@ class t_cpp_client_generator : public t_oop_generator {
   void generate_struct_result_writer (std::ofstream& out, t_struct* tstruct, bool pointers=false);
   void generate_struct_swap          (std::ofstream& out, t_struct* tstruct);
   void generate_struct_ostream_operator(std::ofstream& out, t_struct* tstruct);
-  void generate_struct_reflection_info(std::ofstream& out, t_struct* tstruct);
 
   /**
    * Service-level generation functions
@@ -159,6 +131,8 @@ class t_cpp_client_generator : public t_oop_generator {
   void generate_service_processor (t_service* tservice, string style);
   void generate_service_skeleton  (t_service* tservice);
   void generate_process_function  (t_service* tservice, t_function* tfunction,
+                                   string style, bool specialized=false);
+  void generate_return_function  (t_service* tservice, t_function* tfunction,
                                    string style, bool specialized=false);
   void generate_function_helpers  (t_service* tservice, t_function* tfunction);
   void generate_service_async_skeleton (t_service* tservice);
@@ -250,7 +224,7 @@ class t_cpp_client_generator : public t_oop_generator {
   std::string declare_field(t_field* tfield, bool init=false, bool pointer=false, bool constant=false, bool reference=false, std::string alias="");
   std::string function_signature(t_function* tfunction, std::string style, std::string prefix="", bool name_params=true, std::string preargs="");
   std::string function_signature_if(t_function* tfunction, std::string style, std::string prefix="", bool name_params=true);
-  std::string argument_list(t_struct* tstruct, bool name_params=true, bool start_comma=false);
+  std::string argument_list(t_struct* tstruct, bool name_params=true, bool start_comma=false, bool add_ns = false);
   std::string type_to_enum(t_type* ttype);
   std::string local_reflection_name(const char*, t_type* ttype, bool external=false);
 
@@ -345,12 +319,13 @@ class t_cpp_client_generator : public t_oop_generator {
    * function.
    */
 
-  std::ofstream f_types_;
-  std::ofstream f_types_impl_;
-  std::ofstream f_types_tcc_;
-  std::ofstream f_header_;
-  std::ofstream f_service_;
-  std::ofstream f_service_tcc_;
+  // 基本数据结构定义及实现
+  std::ofstream f_types_h_;
+  std::ofstream f_types_cpp_;
+  // 每个服务独立的用户接口和实现
+  std::ofstream f_service_h_;
+  std::ofstream f_service_inh_;
+  std::ofstream f_service_cpp_;
 
   /**
    * When generating local reflections, make sure we don't generate duplicates.
@@ -382,113 +357,76 @@ void t_cpp_client_generator::init_generator() {
 
   // Make output file
   string f_types_name = get_out_dir()+program_name_+".h";
-  f_types_.open(f_types_name.c_str());
+  f_types_h_.open(f_types_name.c_str());
 
   string f_types_impl_name = get_out_dir()+program_name_+".cpp";
-  f_types_impl_.open(f_types_impl_name.c_str());
-
-  if (gen_templates_) {
-    // If we don't open the stream, it appears to just discard data,
-    // which is fine.
-    string f_types_tcc_name = get_out_dir()+program_name_+".tcc";
-    f_types_tcc_.open(f_types_tcc_name.c_str());
-  }
+  f_types_cpp_.open(f_types_impl_name.c_str());
 
   // Print header
-  f_types_ <<
+  f_types_h_ <<
     autogen_comment();
-  f_types_impl_ <<
-    autogen_comment();
-  f_types_tcc_ <<
+  f_types_cpp_ <<
     autogen_comment();
 
   // Start ifndef
-  f_types_ <<
-    "#ifndef " << program_name_ << "_TYPES_H" << endl <<
-    "#define " << program_name_ << "_TYPES_H" << endl <<
-    endl;
-  f_types_tcc_ <<
-    "#ifndef " << program_name_ << "_TYPES_TCC" << endl <<
-    "#define " << program_name_ << "_TYPES_TCC" << endl <<
+  f_types_h_ <<
+    "#ifndef __" << program_name_ << "_h__" << endl <<
+    "#define __" << program_name_ << "_h__" << endl <<
     endl;
 
   // Include base types
-  f_types_ <<
-    "#include <iosfwd>" << endl << endl <<
-    //"#include <thrift/Thrift.h>" << endl <<
-    //"#include <source/rpc/application_exception.h>" << endl <<
-    "#include <rpc/processor/async_dispatch_processor.h>" << endl <<
+  f_types_h_ <<
+    "#include <iosfwd>" << endl <<
     endl;
-  // Include C++xx compatibility header
-  //f_types_ << "#include <thrift/cxxfunctional.h>" << endl;
-  //
+
+  f_types_h_ <<
+      "#include \"dr/common/common.h\"" << endl <<
+      "#include \"dr/protocol/protocol.h\"" << endl <<
+      endl;
 
   // Include other Thrift includes
   const vector<t_program*>& includes = program_->get_includes();
   for (size_t i = 0; i < includes.size(); ++i) {
-    f_types_ <<
+    f_types_h_ <<
       "#include \"" << get_include_prefix(*(includes[i])) <<
       includes[i]->get_name() << ".h\"" << endl;
-
-    // XXX(simpkins): If gen_templates_ is enabled, we currently assume all
-    // included files were also generated with templates enabled.
-    f_types_tcc_ <<
-      "#include \"" << get_include_prefix(*(includes[i])) <<
-      includes[i]->get_name() << ".tcc\"" << endl;
   }
-  f_types_ << endl;
+  f_types_h_ << endl << endl;
 
   // Include custom headers
   const vector<string>& cpp_includes = program_->get_cpp_includes();
   for (size_t i = 0; i < cpp_includes.size(); ++i) {
     if (cpp_includes[i][0] == '<') {
-      f_types_ <<
+      f_types_h_ <<
         "#include " << cpp_includes[i] << endl;
     } else {
-      f_types_ <<
+      f_types_h_ <<
         "#include \"" << cpp_includes[i] << "\"" << endl;
     }
   }
-  f_types_ <<
+  f_types_h_ <<
     endl;
-
-  // Include the types file
-  f_types_impl_ <<
-    "#include \"" << get_include_prefix(*get_program()) << program_name_ <<
-    ".h\"" << endl <<
-    endl;
-  f_types_tcc_ <<
-    "#include \"" << get_include_prefix(*get_program()) << program_name_ <<
-    ".h\"" << endl <<
-    endl;
-
-  // If we are generating local reflection metadata, we need to include
-  // the definition of TypeSpec.
-  if (gen_dense_) {
-    f_types_impl_ <<
-      "#include <rpc/common/reflection_local.h>" << endl <<
-      endl;
-  }
 
   // The swap() code needs <algorithm> for std::swap()
-  f_types_impl_ << "#include <algorithm>" << endl;
-  // for operator<<
-  f_types_impl_ << "#include <ostream>" << endl << endl;
-  f_types_impl_ << "#include <rpc/common/to_string.h>" << endl << endl;
+  f_types_cpp_ << "#include <algorithm>" << endl;
+  f_types_cpp_ << "#include <ostream>" << endl << endl;
+  f_types_cpp_ << "#include \"dr/common/to_string.h\"" << endl;
+  f_types_cpp_ << "#include \"platform.h\"" << endl;
+
+  // Include the types file
+  f_types_cpp_ <<
+    "#include \"" << get_include_prefix(*get_program()) << program_name_ << ".h\"" << endl <<
+    endl;
 
   // Open namespace
   ns_open_ = namespace_open(program_->get_namespace("cpp"));
   ns_close_ = namespace_close(program_->get_namespace("cpp"));
 
-  f_types_ <<
+  f_types_h_ <<
     ns_open_ << endl <<
     endl;
 
-  f_types_impl_ <<
-    ns_open_ << endl <<
-    endl;
-
-  f_types_tcc_ <<
+  f_types_cpp_ <<
     ns_open_ << endl <<
     endl;
 }
@@ -498,35 +436,15 @@ void t_cpp_client_generator::init_generator() {
  */
 void t_cpp_client_generator::close_generator() {
   // Close namespace
-  f_types_ <<
-    ns_close_ << endl <<
-    endl;
-  f_types_impl_ <<
-    ns_close_ << endl;
-  f_types_tcc_ <<
-    ns_close_ << endl <<
-    endl;
-
-  // Include the types.tcc file from the types header file,
-  // so clients don't have to explicitly include the tcc file.
-  // TODO(simpkins): Make this a separate option.
-  if (gen_templates_) {
-    f_types_ <<
-      "#include \"" << get_include_prefix(*get_program()) << program_name_ <<
-      ".tcc\"" << endl <<
-      endl;
-  }
+  f_types_h_ << ns_close_ << endl << endl;
+  f_types_cpp_ << ns_close_ << endl;
 
   // Close ifndef
-  f_types_ <<
-    "#endif" << endl;
-  f_types_tcc_ <<
-    "#endif" << endl;
+  f_types_h_ << "#endif // __" << program_name_ << "_h__" << endl;
 
   // Close output file
-  f_types_.close();
-  f_types_impl_.close();
-  f_types_tcc_.close();
+  f_types_h_.close();
+  f_types_cpp_.close();
 }
 
 /**
@@ -535,7 +453,7 @@ void t_cpp_client_generator::close_generator() {
  * @param ttypedef The type definition
  */
 void t_cpp_client_generator::generate_typedef(t_typedef* ttypedef) {
-  f_types_ <<
+  f_types_h_ <<
     indent() << "typedef " << type_name(ttypedef->get_type(), true) << " " << ttypedef->get_symbolic() << ";" << endl <<
     endl;
 }
@@ -581,21 +499,21 @@ void t_cpp_client_generator::generate_enum(t_enum* tenum) {
   std::string enum_name = tenum->get_name();
   if (!gen_pure_enums_) {
     enum_name = "type";
-    f_types_ <<
+    f_types_h_ <<
       indent() << "struct " << tenum->get_name() << " {" << endl;
     indent_up();
   }
-  f_types_ <<
+  f_types_h_ <<
     indent() << "enum " << enum_name;
 
-  generate_enum_constant_list(f_types_, constants, "", "", true);
+  generate_enum_constant_list(f_types_h_, constants, "", "", true);
 
   if (!gen_pure_enums_) {
     indent_down();
-    f_types_ << "};" << endl;
+    f_types_h_ << "};" << endl;
   }
 
-  f_types_ << endl;
+  f_types_h_ << endl;
 
   /**
      Generate a character array of enum names for debugging purposes.
@@ -605,168 +523,48 @@ void t_cpp_client_generator::generate_enum(t_enum* tenum) {
     prefix = tenum->get_name() + "::";
   }
 
-  f_types_impl_ <<
+  f_types_cpp_ <<
     indent() << "int _k" << tenum->get_name() << "Values[] =";
-  generate_enum_constant_list(f_types_impl_, constants, prefix.c_str(), "", false);
+  generate_enum_constant_list(f_types_cpp_, constants, prefix.c_str(), "", false);
 
-  f_types_impl_ <<
+  f_types_cpp_ <<
     indent() << "const char* _k" << tenum->get_name() << "Names[] =";
-  generate_enum_constant_list(f_types_impl_, constants, "\"", "\"", false);
+  generate_enum_constant_list(f_types_cpp_, constants, "\"", "\"", false);
 
-  f_types_ <<
+  f_types_h_ <<
     indent() << "extern const std::map<int, const char*> _" <<
     tenum->get_name() << "_VALUES_TO_NAMES;" << endl << endl;
 
-  f_types_impl_ <<
+  f_types_cpp_ <<
     indent() << "const std::map<int, const char*> _" << tenum->get_name() <<
-    "_VALUES_TO_NAMES(::pebble::rpc::TEnumIterator(" << constants.size() <<
+    "_VALUES_TO_NAMES(::pebble::dr::TEnumIterator(" << constants.size() <<
     ", _k" << tenum->get_name() << "Values" <<
     ", _k" << tenum->get_name() << "Names), " <<
-    "::pebble::rpc::TEnumIterator(-1, NULL, NULL));" << endl << endl;
+    "::pebble::dr::TEnumIterator(-1, NULL, NULL));" << endl << endl;
 
-  generate_local_reflection(f_types_, tenum, false);
-  generate_local_reflection(f_types_impl_, tenum, true);
+  generate_local_reflection(f_types_h_, tenum, false);
+  generate_local_reflection(f_types_cpp_, tenum, true);
 }
 
-/**
- * Generates a class that holds all the constants.
- */
-void t_cpp_client_generator::generate_consts(std::vector<t_const*> consts) {
-  // generate consts in servcie files.
-  return;
-
-  string f_consts_name = get_out_dir()+program_name_+"_constants.h";
-  ofstream f_consts;
-  f_consts.open(f_consts_name.c_str());
-
-  string f_consts_impl_name = get_out_dir()+program_name_+"_constants.cpp";
-  ofstream f_consts_impl;
-  f_consts_impl.open(f_consts_impl_name.c_str());
-
-  // Print header
-  f_consts <<
-    autogen_comment();
-  f_consts_impl <<
-    autogen_comment();
-
-  // Start ifndef
-  f_consts <<
-    "#ifndef " << program_name_ << "_CONSTANTS_H" << endl <<
-    "#define " << program_name_ << "_CONSTANTS_H" << endl <<
-    endl <<
-    "#include \"" << get_include_prefix(*get_program()) << program_name_ <<
-    ".h\"" << endl <<
-    endl <<
-    ns_open_ << endl <<
-    endl;
-
-  f_consts_impl <<
-    "#include \"" << get_include_prefix(*get_program()) << program_name_ <<
-    "_constants.h\"" << endl <<
-    endl <<
-    ns_open_ << endl <<
-    endl;
-
-  f_consts <<
-    "class " << program_name_ << "Constants {" << endl <<
-    "public:" << endl <<
-    indent() << program_name_ << "Constants();" << endl <<
-    endl;
-  indent_up();
-  vector<t_const*>::iterator c_iter;
-  for (c_iter = consts.begin(); c_iter != consts.end(); ++c_iter) {
-    string name = (*c_iter)->get_name();
-    t_type* type = (*c_iter)->get_type();
-    f_consts <<
-      indent() << type_name(type) << " " << name << ";" << endl;
-  }
-  indent_down();
-  f_consts <<
-    "};" << endl;
-
-  f_consts_impl <<
-    "const " << program_name_ << "Constants g_" << program_name_ << "_constants;" << endl <<
-    endl <<
-    program_name_ << "Constants::" << program_name_ << "Constants() {" << endl;
-  indent_up();
-  for (c_iter = consts.begin(); c_iter != consts.end(); ++c_iter) {
-    print_const_value(f_consts_impl,
-                      (*c_iter)->get_name(),
-                      (*c_iter)->get_type(),
-                      (*c_iter)->get_value());
-  }
-  indent_down();
-  indent(f_consts_impl) <<
-    "}" << endl;
-
-  f_consts <<
-    endl <<
-    "extern const " << program_name_ << "Constants g_" << program_name_ << "_constants;" << endl <<
-    endl <<
-    ns_close_ << endl <<
-    endl <<
-    "#endif" << endl;
-  f_consts.close();
-
-  f_consts_impl <<
-    endl <<
-    ns_close_ << endl <<
-    endl;
+void t_cpp_client_generator::generate_const(t_const* tconst) {
+    f_types_h_ << "static const " << type_name(tconst->get_type())
+        << " " << tconst->get_name()
+        << " = " << get_const_value(tconst->get_type(), tconst->get_value()) << ";"
+        << endl << endl;
 }
 
-
-/**
- * Generates a class that holds all the constants.
- */
-void t_cpp_client_generator::generate_consts_in_services(std::vector<t_const*> consts) {
-  static bool is_generated = false;
-  if (is_generated) {
-    return;
+std::string t_cpp_client_generator::get_const_value(t_type* type, t_const_value* value) {
+  std::ostringstream oss;
+  std::string name;
+  type = get_true_type(type);
+  if (type->is_base_type()) {
+    return render_const_value(f_types_h_, name, type, value);
+  } else if (type->is_enum()) {
+    oss << value->get_integer();
+    return oss.str();
+  } else {
+    throw "INVALID TYPE for const define" + type->get_name();
   }
-
-  if (consts.size() < 1) {
-    return;
-  }
-
-  f_header_ <<
-    "class " << program_name_ << "Constants {" << endl <<
-    "public:" << endl <<
-    indent() << program_name_ << "Constants();" << endl <<
-    endl;
-  indent_up();
-  vector<t_const*>::iterator c_iter;
-  for (c_iter = consts.begin(); c_iter != consts.end(); ++c_iter) {
-    string name = (*c_iter)->get_name();
-    t_type* type = (*c_iter)->get_type();
-    f_header_ <<
-      indent() << type_name(type) << " " << name << ";" << endl;
-  }
-  indent_down();
-  f_header_ <<
-    "};" << endl;
-
-  f_service_ <<
-    "const " << program_name_ << "Constants g_" << program_name_ << "_constants;" << endl <<
-    endl <<
-    program_name_ << "Constants::" << program_name_ << "Constants() {" << endl;
-  indent_up();
-  for (c_iter = consts.begin(); c_iter != consts.end(); ++c_iter) {
-    print_const_value(f_service_,
-                      (*c_iter)->get_name(),
-                      (*c_iter)->get_type(),
-                      (*c_iter)->get_value());
-  }
-  indent_down();
-  indent(f_service_) <<
-    "}" << endl << endl;
-
-  f_header_ <<
-    endl <<
-    "extern const " << program_name_ << "Constants g_" << program_name_ << "_constants;"
-    << endl << endl;
-
-  is_generated = true;
-
 }
 
 
@@ -891,7 +689,7 @@ string t_cpp_client_generator::render_const_value(ofstream& out, string name, t_
 
 void t_cpp_client_generator::generate_forward_declaration(t_struct* tstruct) {
   // Forward declare struct def
-  f_types_ <<
+  f_types_h_ <<
     indent() << "class " << tstruct->get_name() << ";" << endl <<
     endl;
 }
@@ -904,21 +702,21 @@ void t_cpp_client_generator::generate_forward_declaration(t_struct* tstruct) {
  * @param tstruct The struct definition
  */
 void t_cpp_client_generator::generate_cpp_struct(t_struct* tstruct, bool is_exception) {
-  generate_struct_declaration(f_types_, tstruct, is_exception,
+  generate_struct_declaration(f_types_h_, tstruct, is_exception,
                              false, true, true, true, (!tstruct->is_union()) && (!tstruct->is_xception()));
-  generate_struct_definition(f_types_impl_, f_types_impl_, tstruct);
-  generate_struct_fingerprint(f_types_impl_, tstruct, true);
-  generate_local_reflection(f_types_, tstruct, false);
-  generate_local_reflection(f_types_impl_, tstruct, true);
-  generate_local_reflection_pointer(f_types_impl_, tstruct);
+  generate_struct_definition(f_types_cpp_, f_types_cpp_, tstruct);
+  generate_struct_fingerprint(f_types_cpp_, tstruct, true);
+  generate_local_reflection(f_types_h_, tstruct, false);
+  generate_local_reflection(f_types_cpp_, tstruct, true);
+  generate_local_reflection_pointer(f_types_cpp_, tstruct);
 
-  std::ofstream& out = (gen_templates_ ? f_types_tcc_ : f_types_impl_);
+  std::ofstream& out = (f_types_cpp_);
   generate_struct_reader(out, tstruct);
   generate_struct_writer(out, tstruct);
-  generate_struct_swap(f_types_impl_, tstruct);
-  generate_copy_constructor(f_types_impl_, tstruct, is_exception);
-  generate_assignment_operator(f_types_impl_, tstruct);
-  generate_struct_ostream_operator(f_types_impl_, tstruct);
+  generate_struct_swap(f_types_cpp_, tstruct);
+  generate_copy_constructor(f_types_cpp_, tstruct, is_exception);
+  generate_assignment_operator(f_types_cpp_, tstruct);
+  generate_struct_ostream_operator(f_types_cpp_, tstruct);
 }
 
 void t_cpp_client_generator::generate_copy_constructor(
@@ -931,7 +729,7 @@ void t_cpp_client_generator::generate_copy_constructor(
     tstruct->get_name() << "(const " << tstruct->get_name() <<
     "& " << tmp_name << ") ";
   if (is_exception)
-    out << ": TException() ";
+    out << ": pebble::TException() ";
   out << "{" << endl;
   indent_up();
 
@@ -1005,7 +803,7 @@ void t_cpp_client_generator::generate_struct_declaration(ofstream& out,
                                                  bool reflection) {
   string extends = "";
   if (is_exception) {
-    extends = " : public ::pebble::rpc::TException";
+    extends = " : public ::pebble::TException";
   } else {
     extends = "";
   }
@@ -1135,7 +933,7 @@ void t_cpp_client_generator::generate_struct_declaration(ofstream& out,
   // Pointer to this structure's reflection local typespec.
   if (gen_dense_) {
     indent(out) <<
-      "static ::pebble::rpc::reflection::local::TypeSpec* local_reflection;" <<
+      "static ::pebble::dr::reflection::local::TypeSpec* local_reflection;" <<
       endl << endl;
   }
 
@@ -1190,7 +988,7 @@ void t_cpp_client_generator::generate_struct_declaration(ofstream& out,
         {
             if ((*m_iter)->get_req() != t_field::T_OPTIONAL) {
                 out <<
-                    indent() << "if (!::pebble::rpc::floating_point::AlmostEquals(" << (*m_iter)->get_name()
+                    indent() << "if (!::pebble::dr::floating_point::AlmostEquals(" << (*m_iter)->get_name()
                     << " , rhs." << (*m_iter)->get_name() << "))" << endl <<
                     indent(1) << "return false;" << endl;
             } else {
@@ -1198,7 +996,7 @@ void t_cpp_client_generator::generate_struct_declaration(ofstream& out,
                     indent() << "if (__isset." << (*m_iter)->get_name()
                     << " != rhs.__isset." << (*m_iter)->get_name() << ")" << endl <<
                     indent(1) << "return false;" << endl <<
-                    indent() << "else if (__isset." << (*m_iter)->get_name() << " && !::pebble::rpc::floating_point::AlmostEquals("
+                    indent() << "else if (__isset." << (*m_iter)->get_name() << " && !::pebble::dr::floating_point::AlmostEquals("
                     << (*m_iter)->get_name() << " , rhs." << (*m_iter)->get_name()
                     << "))" << endl <<
                     indent(1) << "return false;" << endl;
@@ -1239,26 +1037,14 @@ void t_cpp_client_generator::generate_struct_declaration(ofstream& out,
   }
 
   if (read) {
-    if (gen_templates_) {
-      out <<
-        indent() << "template <class Protocol_>" << endl <<
-        indent() << "uint32_t read(Protocol_* iprot);" << endl;
-    } else {
       out <<
         indent() << "uint32_t read(" <<
-        "::pebble::rpc::protocol::TProtocol* iprot);" << endl;
-    }
+        "::pebble::dr::protocol::TProtocol* iprot);" << endl;
   }
   if (write) {
-    if (gen_templates_) {
-      out <<
-        indent() << "template <class Protocol_>" << endl <<
-        indent() << "uint32_t write(Protocol_* oprot) const;" << endl;
-    } else {
       out <<
         indent() << "uint32_t write(" <<
-        "::pebble::rpc::protocol::TProtocol* oprot) const;" << endl;
-    }
+        "::pebble::dr::protocol::TProtocol* oprot) const;" << endl;
   }
   out << endl;
 
@@ -1421,7 +1207,7 @@ void t_cpp_client_generator::generate_local_reflection(std::ofstream& out,
     // For definitions of structures, do the arrays of metas and field specs also.
     if (is_definition) {
       out <<
-        indent() << "::pebble::rpc::reflection::local::FieldMeta" << endl <<
+        indent() << "::pebble::dr::reflection::local::FieldMeta" << endl <<
         indent() << local_reflection_name("metas", ttype) <<"[] = {" << endl;
       indent_up();
       for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
@@ -1434,7 +1220,7 @@ void t_cpp_client_generator::generate_local_reflection(std::ofstream& out,
       indent_down();
 
       out <<
-        indent() << "::pebble::rpc::reflection::local::TypeSpec*" << endl <<
+        indent() << "::pebble::dr::reflection::local::TypeSpec*" << endl <<
         indent() << local_reflection_name("specs", ttype) <<"[] = {" << endl;
       indent_up();
       for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
@@ -1451,7 +1237,7 @@ void t_cpp_client_generator::generate_local_reflection(std::ofstream& out,
   out <<
     indent() << "// " << ttype->get_fingerprint_material() << endl <<
     indent() << (is_definition ? "" : "extern ") <<
-      "::pebble::rpc::reflection::local::TypeSpec" << endl <<
+      "::pebble::dr::reflection::local::TypeSpec" << endl <<
       local_reflection_name("typespec", ttype) <<
       (is_definition ? "(" : ";") << endl;
 
@@ -1463,7 +1249,7 @@ void t_cpp_client_generator::generate_local_reflection(std::ofstream& out,
   indent_up();
 
   if (ttype->is_void()) {
-    indent(out) << "::pebble::rpc::protocol::T_STOP";
+    indent(out) << "::pebble::dr::protocol::T_STOP";
   } else {
     indent(out) << type_to_enum(ttype);
   }
@@ -1502,7 +1288,7 @@ void t_cpp_client_generator::generate_local_reflection_pointer(std::ofstream& ou
     return;
   }
   indent(out) <<
-    "::pebble::rpc::reflection::local::TypeSpec* " <<
+    "::pebble::dr::reflection::local::TypeSpec* " <<
       ttype->get_name() << "::local_reflection = " << endl <<
     indent(1) << "&" << local_reflection_name("typespec", ttype) << ";" <<
     endl << endl;
@@ -1517,6 +1303,7 @@ void t_cpp_client_generator::generate_local_reflection_pointer(std::ofstream& ou
 void t_cpp_client_generator::generate_struct_reader(ofstream& out,
                                              t_struct* tstruct,
                                              bool pointers) {
+  
   if (gen_templates_) {
     out <<
       indent() << "template <class Protocol_>" << endl <<
@@ -1525,7 +1312,7 @@ void t_cpp_client_generator::generate_struct_reader(ofstream& out,
   } else {
     indent(out) <<
       "uint32_t " << tstruct->get_name() <<
-      "::read(::pebble::rpc::protocol::TProtocol* iprot) {" << endl;
+      "::read(::pebble::dr::protocol::TProtocol* iprot) {" << endl;
   }
   indent_up();
 
@@ -1537,12 +1324,12 @@ void t_cpp_client_generator::generate_struct_reader(ofstream& out,
     endl <<
     indent() << "uint32_t xfer = 0;" << endl <<
     indent() << "std::string fname;" << endl <<
-    indent() << "::pebble::rpc::protocol::TType ftype;" << endl <<
+    indent() << "::pebble::dr::protocol::TType ftype;" << endl <<
     indent() << "int16_t fid;" << endl <<
     endl <<
     indent() << "xfer += iprot->readStructBegin(fname);" << endl <<
     endl <<
-    indent() << "using ::pebble::rpc::protocol::TProtocolException;" << endl <<
+    indent() << "using ::pebble::dr::protocol::TProtocolException;" << endl <<
     endl;
 
   // Required variables aren't in __isset, so we need tmp vars to check them.
@@ -1564,7 +1351,7 @@ void t_cpp_client_generator::generate_struct_reader(ofstream& out,
 
     // Check for field STOP marker
     out <<
-      indent() << "if (ftype == ::pebble::rpc::protocol::T_STOP) {" << endl <<
+      indent() << "if (ftype == ::pebble::dr::protocol::T_STOP) {" << endl <<
       indent() << indent() << "break;" << endl <<
       indent() << "}" << endl;
 
@@ -1596,7 +1383,7 @@ void t_cpp_client_generator::generate_struct_reader(ofstream& out,
             "case " << (*f_iter)->get_key() << ":" << endl;
           indent_up();
           indent(out) <<
-            "if (ftype == " << type_to_enum((*f_iter)->get_type()) << ") {" << endl;
+            "if (ftype == ::pebble::dr::protocol::T_NULL || ftype == " << type_to_enum((*f_iter)->get_type()) << ") {" << endl;
           indent_up();
 
           const char *isset_prefix =
@@ -1688,7 +1475,7 @@ void t_cpp_client_generator::generate_struct_writer(ofstream& out,
   } else {
     indent(out) <<
       "uint32_t " << tstruct->get_name() <<
-      "::write(::pebble::rpc::protocol::TProtocol* oprot) const {" << endl;
+      "::write(::pebble::dr::protocol::TProtocol* oprot) const {" << endl;
   }
   indent_up();
 
@@ -1768,7 +1555,7 @@ void t_cpp_client_generator::generate_struct_result_writer(ofstream& out,
   } else {
     indent(out) <<
       "uint32_t " << tstruct->get_name() <<
-      "::write(::pebble::rpc::protocol::TProtocol* oprot) const {" << endl;
+      "::write(::pebble::dr::protocol::TProtocol* oprot) const {" << endl;
   }
   indent_up();
 
@@ -1962,7 +1749,7 @@ void t_cpp_client_generator::generate_struct_ostream_operator(std::ofstream& out
   indent_up();
 
   out <<
-    indent() << "using pebble::rpc::to_string;" << endl;
+    indent() << "using pebble::dr::to_string;" << endl;
 
   // eliminate compiler unused warning
   const vector<t_field*>& fields = tstruct->get_members();
@@ -1984,133 +1771,6 @@ void t_cpp_client_generator::generate_struct_ostream_operator(std::ofstream& out
   out << "}" << endl << endl;
 }
 
-void t_cpp_client_generator::generate_struct_reflection_info(std::ofstream& out, t_struct* tstruct) {
-  if (tstruct->is_xception() || tstruct->is_union()) return;
-  // Get members
-  vector<t_field*>::const_iterator m_iter;
-  const vector<t_field*>& members = tstruct->get_members();
-
-  for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
-      bool check_if_set = (*m_iter)->get_req() == t_field::T_OPTIONAL ||
-          (*m_iter)->get_type()->is_xception();
-
-      out << indent() << "int " << tstruct->get_name() << "::FieldInfo_" <<
-          (*m_iter)->get_name() << "::Pack(void *obj, uint8_t *buff, uint32_t buff_len) const {" << endl;
-      indent_up();
-      out << indent() << "if (obj == NULL || buff == NULL) return pebble::rpc::reflection::kINVALIDPARAMETER;" << endl;
-      out << indent() << "try {" << endl;
-      indent_up();
-      out << indent() << "pebble::rpc::internal::FieldPackGlobal::reset(buff, buff_len);" << endl;
-      out << indent() << tstruct->get_name() << " *pstruct = static_cast<" << tstruct->get_name() << "*>(obj);" << endl;
-      out << indent() << "if (pstruct == NULL) return pebble::rpc::reflection::kINVALIDOBJECT;" << endl;
-      out << indent() << "uint32_t xfer = 0;" << endl << endl;
-      if (check_if_set) {
-          out << endl << indent() << "if (pstruct->__isset." << (*m_iter)->get_name() << ") {" << endl;
-          indent_up();
-      }
-      generate_serialize_field(out, *m_iter, "pebble::rpc::internal::FieldPackGlobal::protocol.get()", "pstruct->");
-      if (check_if_set) {
-          indent_down();
-          out << indent() << "}" << endl;
-      }
-      out << indent() << "return pebble::rpc::internal::FieldPackGlobal::used();" << endl;
-      indent_down();
-      out << indent() << "} catch (pebble::rpc::internal::ArrayOutOfBoundsException) {" << endl;
-      out << indent(1) << "return pebble::rpc::reflection::kINSUFFICIENTBUFFER;" << endl;
-      out << indent() << "} catch (...) {" << endl;
-      out << indent(1) << "return pebble::rpc::reflection::kUNKNOW;" << endl;
-      out << indent() << "}" << endl;
-      indent_down();
-      out << indent() << "};" << endl << endl;;
-
-      out << indent() << "int " << tstruct->get_name() << "::FieldInfo_" <<
-          (*m_iter)->get_name() << "::UnPack(void *obj, uint8_t *buff, uint32_t buff_len) const {" << endl;
-      indent_up();
-      out << indent() << "if (obj == NULL || buff == NULL) return pebble::rpc::reflection::kINVALIDPARAMETER;" << endl;
-      out << indent() << "try {" << endl;
-      indent_up();
-      out << indent() << "pebble::rpc::internal::FieldPackGlobal::reset(buff, buff_len);" << endl;
-      out << indent() << tstruct->get_name() << " *pstruct = static_cast<" << tstruct->get_name() << "*>(obj);" << endl;
-      out << indent() << "if (pstruct == NULL) return pebble::rpc::reflection::kINVALIDOBJECT;" << endl;
-      out << indent() << "uint32_t xfer = 0;" << endl << endl;
-      generate_deserialize_field(out, *m_iter, "pebble::rpc::internal::FieldPackGlobal::protocol.get()", "pstruct->");
-      if ((*m_iter)->get_req() != t_field::T_REQUIRED) {
-          out << indent() << "pstruct->__isset." << (*m_iter)->get_name() << " = true;" << endl;
-      }
-      out << indent() << "return pebble::rpc::internal::FieldPackGlobal::used();" << endl;
-      indent_down();
-      out << indent() << "} catch (pebble::rpc::internal::ArrayOutOfBoundsException) {" << endl;
-      out << indent(1) << "return pebble::rpc::reflection::kINVALIDBUFFER;" << endl;
-      out << indent() << "} catch (...) {" << endl;
-      out << indent(1) << "return pebble::rpc::reflection::kUNKNOW;" << endl;
-      out << indent() << "}" << endl;
-      indent_down();
-      out << indent() << "};" << endl << endl;;
-  }
-
-  out << indent() << "const pebble::rpc::reflection::TypeInfo* "<< tstruct->get_name() << "::GetTypeInfo() {" << endl;
-  out << indent(1) << "return S_GetTypeInfo();" << endl;
-  out << "}" << endl << endl;
-
-  out << indent() << "const pebble::rpc::reflection::TypeInfo* "<< tstruct->get_name() << "::S_GetTypeInfo() {" << endl;
-
-  indent_up();
-
-  out << indent() << "if (s_type_info == NULL) {" << endl;
-  indent_up();
-  out << indent() << "cxx::unordered_map<std::string, pebble::rpc::reflection::FieldInfo *> field_infos;" << endl;
-  out << indent() << "pebble::rpc::reflection::AttributesType struct_attrs;" << endl << endl;
-
-  typedef map<string, map<string, string> >::iterator AttributesIterator;
-  AttributesIterator attr_iter;
-  map<string, string>::iterator kv_iter;
-
-  if (!tstruct->attributes_.empty()) {
-    scope_up(out);
-    for (attr_iter = tstruct->attributes_.begin(); attr_iter != tstruct->attributes_.end(); ++attr_iter) {
-      if (attr_iter->second.empty()) {
-        continue;
-      }
-      out << indent() << "std::map<std::string, std::string> "<< attr_iter->first << ";" << endl;
-      for (kv_iter = attr_iter->second.begin(); kv_iter != attr_iter->second.end(); ++kv_iter) {
-          out << indent() << attr_iter->first << "[\""<< kv_iter->first << "\"] = \"" << escape_string(kv_iter->second) << "\";" << endl;
-      }
-      out << indent() << "struct_attrs[\""<< attr_iter->first << "\"] = " << attr_iter->first << ";" << endl << endl;
-    }
-    scope_down(out);
-  }
-
-  for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
-    scope_up(out);
-    out << indent() << "pebble::rpc::reflection::AttributesType field_attrs;" << endl << endl;
-    for (attr_iter = (*m_iter)->attributes_.begin(); attr_iter != (*m_iter)->attributes_.end(); ++attr_iter) {
-      if (attr_iter->second.empty()) {
-        continue;
-      }
-      out << indent() << "std::map<std::string, std::string> "<< attr_iter->first << ";" << endl;
-      for (kv_iter = attr_iter->second.begin(); kv_iter != attr_iter->second.end(); ++kv_iter) {
-          out << indent() << attr_iter->first << "[\""<< kv_iter->first << "\"] = \"" << escape_string(kv_iter->second) << "\";" << endl;
-      }
-      out << indent() << "field_attrs[\""<< attr_iter->first << "\"] = " << attr_iter->first << ";" << endl << endl;
-    }
-    out << indent() << "field_infos[\"" << (*m_iter)->get_name() <<  "\"] = new FieldInfo_"
-        << (*m_iter)->get_name() << "(" << endl;
-    out << indent(1) << "\"" << (*m_iter)->get_name() << "\", " << (*m_iter)->get_key()
-        << ", " << type_to_enum((*m_iter)->get_type()) << ", "<< ((*m_iter)->get_req() == t_field::T_OPTIONAL ? "true" : "false") << ", field_attrs);" << endl;
-    scope_down(out);
-  }
-
-  out << indent() << "s_type_info = new pebble::rpc::reflection::TypeInfo(field_infos, struct_attrs);" << endl;
-  indent_down();
-  out << indent() << "}" << endl;
-
-  out << indent() << "return s_type_info;" << endl;
-  indent_down();
-  out << "}" << endl << endl;
-
-  out << "pebble::rpc::reflection::TypeInfo* " << tstruct->get_name() << "::s_type_info = NULL;" << endl << endl;
-}
-
 
 /**
  * Generates a thrift service. In C++, this comprises an entirely separate
@@ -2124,175 +1784,125 @@ void t_cpp_client_generator::generate_service(t_service* tservice) {
   string svcname = tservice->get_name();
 
   // Make output files
-  string f_header_name = get_out_dir()+program_name_+"_"+svcname+"_if.h";
-  f_header_.open(f_header_name.c_str());
+  string f_header_h_name = get_out_dir()+program_name_+"_"+svcname+".h";
+  string f_header_inh_name = get_out_dir()+program_name_+"_"+svcname+".inh";
+  f_service_h_.open(f_header_h_name.c_str());
+  f_service_inh_.open(f_header_inh_name.c_str());
 
   // Print header file includes
-  f_header_ <<
+  f_service_h_ <<
     autogen_comment();
-  f_header_ <<
-    "#ifndef " << program_name_ << "_" << svcname << "_H" << endl <<
-    "#define " << program_name_ << "_" << svcname << "_H" << endl <<
+  f_service_h_ <<
+    "#ifndef __" << program_name_ << "_" << svcname << "_h__" << endl <<
+    "#define __" << program_name_ << "_" << svcname << "_h__" << endl <<
     endl;
-  if (gen_cob_style_) {
-    //f_header_ <<
-    //  "#include <source/rpc/transport/buffer_transport.h>" << endl;// << // TMemoryBuffer
-      //"#include <source/rpc/cxxfunctional.h>" << endl <<
-      //"namespace pebble { namespace rpc { namespace async {" << endl <<
-      //"class TAsyncChannel;" << endl <<
-      //"}}}" << endl;
-  }
-  //f_header_ <<
-  //  "#include <source/rpc/processor/dispatch_processor.h>" << endl;
-  //if (gen_cob_style_) {
-  //  f_header_ <<
-  //    "#include <source/rpc/processor/async_dispatch_processor.h>" << endl;
-  //}
-  f_header_ <<
+
+  f_service_h_ <<
+    "#include \"" << get_include_prefix(*get_program()) << program_name_ <<
+    "_" << svcname << ".inh\"" <<
+    endl;
+
+  f_service_h_ <<
+    ns_open_ << endl <<
+    endl;
+
+  // Print inheader file includes
+  f_service_inh_ <<
+    autogen_comment();
+  f_service_inh_ <<
+    "#ifndef __" << program_name_ << "_" << svcname << "_inh__" << endl <<
+    "#define __" << program_name_ << "_" << svcname << "_inh__" << endl <<
+    endl;
+
+  f_service_inh_ << "#include \"pebble_rpc.h\"" << endl;
+
+  f_service_inh_ <<
     "#include \"" << get_include_prefix(*get_program()) << program_name_ <<
     ".h\"" << endl;
 
-  f_header_ << endl <<
-    "namespace pebble {" << endl <<
-    "namespace rpc {" << endl;
-
-  f_header_ <<
-      indent() << "class RpcConnector;" << endl;
-
-  f_header_ << indent() << "template<typename Class> class GetProcessor;" << endl << endl;
-
-  string ns = namespace_prefix(tservice->get_program()->get_namespace("cpp"));
-
-  f_header_
-      << indent() << "template<>" << endl
-      << indent() << "class GetProcessor<" << ns << service_name_ << "CobSvIf> {" << endl
-      << indent() << "public:" << endl
-      << indent(1) << "cxx::shared_ptr<pebble::rpc::processor::TAsyncProcessor> operator() (" << ns << service_name_ << "CobSvIf *handler) {" << endl
-      << indent(2) << "cxx::shared_ptr<" << ns << service_name_ << "CobSvIf> iface(handler, D());" << endl
-      << indent(2) << "cxx::shared_ptr<pebble::rpc::processor::TAsyncProcessor> processor(new "
-      << ns << service_name_ << "AsyncProcessor(iface));" << endl
-      << indent(2) << "return processor;" << endl
-      << indent(1) << "}" << endl
-      << indent() << "};" << endl;
-
-  f_header_ <<
-    "} // namespace rpc" << endl <<
-    "} // namespace pebble" << endl << endl;
-
   t_service* extends_service = tservice->get_extends();
   if (extends_service != NULL) {
-    f_header_ <<
+    f_service_inh_ <<
       "#include \"" << get_include_prefix(*(extends_service->get_program())) <<
       extends_service->get_program()->get_name() << "_" <<
-      extends_service->get_name() << "_if.h\"" << endl;
-  } else {
-    //f_header_ <<
-    //  "#include <source/rpc/rpc_client.h>" << endl;
+      extends_service->get_name() << ".h\"" << endl;
   }
 
-  f_header_ <<
-    endl <<
+  f_service_inh_ <<
     ns_open_ << endl <<
     endl;
 
   // Service implementation file includes
   string f_service_name = get_out_dir()+program_name_+"_"+svcname+".cpp";
-  f_service_.open(f_service_name.c_str());
-  f_service_ <<
+  f_service_cpp_.open(f_service_name.c_str());
+  f_service_cpp_ <<
     autogen_comment();
-  f_service_ <<
-    "#include \"" << get_include_prefix(*get_program()) << program_name_ << "_" << svcname << "_if.h\"" << endl;
-  f_service_ <<
-    "#include \"rpc/common/rpc_error_info.h\"" << endl;
-  f_service_ <<
-    "#include \"rpc/rpc.h\"" << endl;
-  if (gen_cob_style_) {
-    //f_service_ <<
-    //  "#include \"source/rpc/async/async_channel.h\"" << endl;
-  }
-  if (gen_templates_) {
-    f_service_ <<
-      "#include \"" << get_include_prefix(*get_program()) << program_name_ << "_" << svcname <<
-      ".tcc\"" << endl;
 
-    string f_service_tcc_name = get_out_dir()+svcname+".tcc";
-    f_service_tcc_.open(f_service_tcc_name.c_str());
-    f_service_tcc_ <<
-      autogen_comment();
-    f_service_tcc_ <<
-      "#include \"" << get_include_prefix(*get_program()) << svcname <<
-      ".h\"" << endl;
+  // The swap() code needs <algorithm> for std::swap()
+  f_service_cpp_ << "#include <algorithm>" << endl;
+  // for operator<<
+  f_service_cpp_ << "#include <ostream>" << endl << endl;
+  f_service_cpp_ << "#include \"dr/common/dr_define.h\"" << endl;
+  f_service_cpp_ << "#include \"dr/common/to_string.h\"" << endl;
+  
+  f_service_cpp_ << "#include \"dr/transport/buffer_transport.h\"" << endl;
 
-    f_service_tcc_ <<
-      "#ifndef " << program_name_ << "_" << svcname << "_TCC" << endl <<
-      "#define " << program_name_ << "_" << svcname << "_TCC" << endl <<
-      endl;
+  f_service_cpp_ <<
+    "#include \"" << get_include_prefix(*get_program()) << program_name_ << "_" << svcname << ".h\"" << endl << endl;
 
-    if (gen_cob_style_) {
-      //f_service_tcc_ <<
-      //  "#include \"source/rpc/async/async_channel.h\"" << endl;
-    }
-  }
-
-  f_service_ <<
-    endl << ns_open_ << endl << endl;
-  f_service_tcc_ <<
+  f_service_cpp_ <<
     endl << ns_open_ << endl << endl;
 
   // Generate all the components
   generate_service_interface(tservice, "");
-  //generate_service_interface_factory(tservice, "");
-  //generate_service_null(tservice, "");
   generate_service_helpers(tservice);
   generate_service_client(tservice, "");
-  //generate_service_processor(tservice, "");
-  //generate_service_multiface(tservice);
-  //generate_service_skeleton(tservice);
 
-  // Generate all the cob components
-  //if (gen_cob_style_) {
-    //generate_service_interface(tservice, "CobCl");
-    generate_service_interface(tservice, "CobSv");
-    //generate_service_interface_factory(tservice, "CobSv");
-    //generate_service_null(tservice, "CobSv");
-    //generate_service_client(tservice, "Cob");
-    generate_service_processor(tservice, "Cob");
-    //generate_service_async_skeleton(tservice);
-  //}
-
-  vector<t_const*> consts = program_->get_consts();
-  generate_consts_in_services(consts);
+  generate_service_interface(tservice, "CobSv");
+  generate_service_processor(tservice, "Cob");
 
   // Close the namespace
-  f_service_ <<
+  f_service_cpp_ <<
     ns_close_ << endl <<
     endl;
-  f_service_tcc_ <<
+  f_service_h_ <<
     ns_close_ << endl <<
     endl;
-  f_header_ <<
+  f_service_inh_ <<
     ns_close_ << endl <<
     endl;
 
-  // TODO(simpkins): Make this a separate option
-  if (gen_templates_) {
-    f_header_ <<
-      "#include \"" << get_include_prefix(*get_program()) << svcname <<
-      ".tcc\"" << endl <<
-      "#include \"" << get_include_prefix(*get_program()) << program_name_ <<
-      ".tcc\"" << endl <<
-      endl;
-  }
+  f_service_h_ << endl << "/* 内部使用，用户无需关注 */" << endl
+    << "namespace pebble {" << endl;
+  f_service_h_ << indent() << "class PebbleRpc;" << endl;
+  f_service_h_ << indent() << "template<typename Class> class GenServiceHandler;" << endl << endl;
 
-  f_header_ <<
-    "#endif" << endl;
-  f_service_tcc_ <<
-    "#endif" << endl;
+  string ns = namespace_prefix(tservice->get_program()->get_namespace("cpp"));
+
+  f_service_h_
+      << indent() << "template<>" << endl
+      << indent() << "class GenServiceHandler<" << ns << service_name_ << "CobSvIf> {" << endl
+      << indent() << "public:" << endl
+      << indent(1) << "cxx::shared_ptr<pebble::IPebbleRpcService> operator() (pebble::PebbleRpc* rpc," << ns << service_name_ << "CobSvIf *iface) {" << endl
+      << indent(2) << "cxx::shared_ptr<pebble::IPebbleRpcService> service_handler(" << endl
+      << indent(3) << "new " << ns << service_name_ << "Handler(rpc, iface));" << endl
+      << indent(2) << "return service_handler;" << endl
+      << indent(1) << "}" << endl
+      << indent() << "};" << endl;
+
+  f_service_h_ <<
+    "} // namespace pebble" << endl << endl;
+
+  f_service_h_ <<
+    "#endif // __" << program_name_ << "_" << svcname << "_h__" << endl;
+
+  f_service_inh_ <<
+    "#endif // __" << program_name_ << "_" << svcname << "_inh__" << endl;
 
   // Close the files
-  f_service_tcc_.close();
-  f_service_.close();
-  f_header_.close();
+  f_service_cpp_.close();
+  f_service_h_.close();
+  f_service_inh_.close();
 }
 
 /**
@@ -2304,7 +1914,8 @@ void t_cpp_client_generator::generate_service(t_service* tservice) {
 void t_cpp_client_generator::generate_service_helpers(t_service* tservice) {
   vector<t_function*> functions = tservice->get_functions();
   vector<t_function*>::iterator f_iter;
-  std::ofstream& out = (gen_templates_ ? f_service_tcc_ : f_service_);
+  // std::ofstream& out = (gen_templates_ ? f_service_tcc_ : f_service_cpp_);
+  std::ofstream& out = f_service_cpp_;
 
   for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
     t_struct* ts = (*f_iter)->get_arglist();
@@ -2312,13 +1923,13 @@ void t_cpp_client_generator::generate_service_helpers(t_service* tservice) {
 
     // TODO(dreiss): Why is this stuff not in generate_function_helpers?
     ts->set_name(tservice->get_name() + "_" + (*f_iter)->get_name() + "_args");
-    generate_struct_declaration(f_types_, ts, false);
-    generate_struct_definition(out, f_service_, ts, false);
+    generate_struct_declaration(f_service_inh_, ts, false);
+    generate_struct_definition(out, out, ts, false);
     generate_struct_reader(out, ts);
     generate_struct_writer(out, ts);
     ts->set_name(tservice->get_name() + "_" + (*f_iter)->get_name() + "_pargs");
-    generate_struct_declaration(f_types_, ts, false, true, false, true);
-    generate_struct_definition(out, f_service_, ts, false);
+    generate_struct_declaration(f_service_inh_, ts, false, true, false, true);
+    generate_struct_definition(out, out, ts, false);
     generate_struct_writer(out, ts, true);
     ts->set_name(name_orig);
 
@@ -2333,79 +1944,58 @@ void t_cpp_client_generator::generate_service_helpers(t_service* tservice) {
  */
 void t_cpp_client_generator::generate_service_interface(t_service* tservice, string style) {
 
-  std::ofstream *out = &f_types_;
+  std::ofstream *out = &f_service_inh_;
   if ("CobSv" == style) {
-    out = &f_header_;
+    out = &f_service_h_;
   }
 
   string service_if_name = service_name_ + style + "If";
-  if (style == "CobCl") {
-    // Forward declare the client.
-    string client_name = service_name_ + "CobClient";
-    if (gen_templates_) {
-      client_name += "T";
-      service_if_name += "T";
-      indent(*out) <<
-        "template <class Protocol_>" << endl;
-    }
-    indent(*out) << "class " << client_name << ";" <<
-      endl << endl;
-  }
 
   string extends = "";
   if (tservice->get_extends() != NULL) {
     extends = " : virtual public " + type_name(tservice->get_extends()) +
       style + "If";
-    if (style == "CobCl" && gen_templates_) {
-      // TODO(simpkins): If gen_templates_ is enabled, we currently assume all
-      // parent services were also generated with templates enabled.
-      extends += "T<Protocol_>";
-    }
   }
 
-  if (style == "CobCl" && gen_templates_) {
-    *out << "template <class Protocol_>" << endl;
-  }
   *out <<
     "class " << service_if_name << extends << " {" << endl <<
     "public:" << endl;
   indent_up();
   *out <<
-    indent() << "virtual ~" << service_if_name << "() {}" << endl;
+    indent() << "virtual ~" << service_if_name << "() {}" << endl << endl;
+
+  if ("CobSv" == style) {
+      *out << indent() << "/* IDL定义接口部分 - begin */" << endl;
+      *out << indent() << "/* IDL定义接口说明 : */" << endl <<
+        indent() << "/* 1. rsp为响应回调函数(ONEWAY接口没有rsp)，调用此函数将向RPC调用方发送响应消息 */" << endl <<
+        indent() << "/* 2. rsp第一个参数为业务处理的返回码，默认0为成功，第二个参数(如果有的话)为响应数据 */" << endl;
+  }
 
   vector<t_function*> functions = tservice->get_functions();
   vector<t_function*>::iterator f_iter;
   for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
     if ((*f_iter)->has_doc()) *out << endl;
     generate_java_doc(*out, *f_iter);
-    *out <<
-      indent() << "virtual " << function_signature_if(*f_iter, style) << " = 0;" << endl;
+    
     // 同步异步接口统一到一起
     if (style == "" && !((*f_iter)->is_oneway())) {
       *out <<
         indent() << "virtual " << function_signature_if(*f_iter, "CobCl") << " = 0;" << endl;
+    } else {
+      *out <<
+        indent() << "virtual " << function_signature_if(*f_iter, style) << " = 0;" << endl;
     }
   }
 
   // add get processor function
   if ("CobSv" == style) {
-    *out << endl;
+    *out << indent() << "/* IDL定义接口部分 - end */" << endl << endl;
     *out << indent() << "typedef " << service_name_ << "CobSvIf __InterfaceType;" << endl;
   }
 
   indent_down();
   *out <<
     "};" << endl << endl;
-
-  if (style == "CobCl" && gen_templates_) {
-    // generate a backwards-compatible typedef for clients that do not
-    // know about the new template-style code
-    *out <<
-      "typedef " << service_if_name <<
-      "< ::pebble::rpc::protocol::TProtocol> " <<
-      service_name_ << style << "If;" <<
-      endl << endl;
-  }
 }
 
 /**
@@ -2449,11 +2039,11 @@ void t_cpp_client_generator::generate_service_interface_factory(t_service* tserv
       style + "IfFactory";
   }
 
-  f_header_ <<
+  f_service_h_ <<
     "class " << factory_name << extends << " {" << endl <<
     "public:" << endl;
   indent_up();
-  f_header_ <<
+  f_service_h_ <<
     indent() << "typedef " << service_if_name << " Handler;" << endl <<
     endl <<
     indent() << "virtual ~" << factory_name << "() {}" << endl <<
@@ -2465,17 +2055,17 @@ void t_cpp_client_generator::generate_service_interface_factory(t_service* tserv
     "* /* handler */) = 0;" << endl;
 
   indent_down();
-  f_header_ <<
+  f_service_h_ <<
     "};" << endl << endl;
 
   // Generate the singleton factory class
   string singleton_factory_name = service_if_name + "SingletonFactory";
-  f_header_ <<
+  f_service_h_ <<
     "class " << singleton_factory_name <<
     " : virtual public " << factory_name << " {" << endl <<
     "public:" << endl;
   indent_up();
-  f_header_ <<
+  f_service_h_ <<
     indent() << singleton_factory_name << "(const cxx::shared_ptr<" <<
     service_if_name << ">& iface) : iface_(iface) {}" << endl <<
     indent() << "virtual ~" << singleton_factory_name << "() {}" << endl <<
@@ -2487,13 +2077,13 @@ void t_cpp_client_generator::generate_service_interface_factory(t_service* tserv
     indent() << "virtual void releaseHandler(" << base_if_name <<
     "* /* handler */) {}" << endl;
 
-  f_header_ <<
+  f_service_h_ <<
     endl <<
     "protected:" << endl <<
     indent() << "cxx::shared_ptr<" << service_if_name << "> iface_;" << endl;
 
   indent_down();
-  f_header_ <<
+  f_service_h_ <<
     "};" << endl << endl;
 }
 
@@ -2507,38 +2097,38 @@ void t_cpp_client_generator::generate_service_null(t_service* tservice, string s
   if (tservice->get_extends() != NULL) {
     extends = " , virtual public " + type_name(tservice->get_extends()) + style + "Null";
   }
-  f_header_ <<
+  f_service_h_ <<
     "class " << service_name_ << style << "Null : virtual public " << service_name_ << style << "If" << extends << " {" << endl <<
     "public:" << endl;
   indent_up();
-  f_header_ <<
+  f_service_h_ <<
     indent() << "virtual ~" << service_name_ << style << "Null() {}" << endl;
   vector<t_function*> functions = tservice->get_functions();
   vector<t_function*>::iterator f_iter;
   for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
-    f_header_ <<
+    f_service_h_ <<
       indent() << function_signature(*f_iter, style, "", false) << " {" << endl;
     indent_up();
 
     t_type* returntype = (*f_iter)->get_returntype();
-    t_field returnfield(returntype, "_return");
+    t_field returnfield(returntype, "response");
 
     if (style == "") {
       if (returntype->is_void() || is_complex_type(returntype)) {
-        f_header_ << indent() << "return;" << endl;
+        f_service_h_ << indent() << "return;" << endl;
       } else {
-        f_header_ <<
+        f_service_h_ <<
           indent() << declare_field(&returnfield, true) << endl <<
-          indent() << "return _return;" << endl;
+          indent() << "return response;" << endl;
       }
     } else if (style == "CobSv") {
       if (returntype->is_void()) {
-        f_header_ << indent() << "return cob();" << endl;
+        f_service_h_ << indent() << "return cb();" << endl;
     } else {
-      t_field returnfield(returntype, "_return");
-      f_header_ <<
+      t_field returnfield(returntype, "response");
+      f_service_h_ <<
         indent() << declare_field(&returnfield, true) << endl <<
-        indent() << "return cob(_return);" << endl;
+        indent() << "return cb(response);" << endl;
     }
 
     } else {
@@ -2546,24 +2136,24 @@ void t_cpp_client_generator::generate_service_null(t_service* tservice, string s
     }
 
     indent_down();
-    f_header_ <<
+    f_service_h_ <<
       indent() << "}" << endl;
 
     // 增加异步接口定义
     if (style == "" && !((*f_iter)->is_oneway())) {
-      f_header_ <<
+      f_service_h_ <<
         indent() << "virtual " << function_signature(*f_iter, "CobCl", "", false) << " {" << endl;
       indent_up();
 
-      f_header_ << indent() << "return;" << endl;
+      f_service_h_ << indent() << "return;" << endl;
 
       indent_down();
-      f_header_ <<
+      f_service_h_ <<
         indent() << "}" << endl;
     }
   }
   indent_down();
-  f_header_ <<
+  f_service_h_ <<
     "};" << endl << endl;
 }
 
@@ -2611,11 +2201,11 @@ void t_cpp_client_generator::generate_service_async_skeleton(t_service* tservice
     "// that would otherwise introduce unwanted latency." << endl <<
     endl <<
     "#include \"" << get_include_prefix(*get_program()) << svcname << ".h\"" << endl <<
-    "#include <rpc/protocol/binary_protocol.h>" << endl <<
+    "#include <source/rpc/protocol/binary_protocol.h>" << endl <<
     endl <<
     "using namespace ::pebble::rpc;" << endl <<
-    "using namespace ::pebble::rpc::protocol;" << endl <<
-    "using namespace ::pebble::rpc::transport;" << endl <<
+    "using namespace ::pebble::dr::protocol;" << endl <<
+    "using namespace ::pebble::dr::transport;" << endl <<
     "using namespace ::pebble::rpc::async;" << endl <<
     endl <<
     "using cxx::shared_ptr;" << endl <<
@@ -2653,15 +2243,15 @@ void t_cpp_client_generator::generate_service_async_skeleton(t_service* tservice
     indent_up();
 
     t_type* returntype = (*f_iter)->get_returntype();
-    t_field returnfield(returntype, "_return");
+    t_field returnfield(returntype, "response");
 
-    string target = returntype->is_void() ? "" : "_return";
+    string target = returntype->is_void() ? "" : "response";
     if (!returntype->is_void()) {
       f_skeleton <<
         indent() << declare_field(&returnfield, true) << endl;
     }
     generate_function_call(f_skeleton, *f_iter, target, "syncHandler_", "");
-    f_skeleton << indent() << "return cob(" << target << ");" << endl;
+    f_skeleton << indent() << "return cb(" << target << ");" << endl;
 
     scope_down(f_skeleton);
   }
@@ -2695,44 +2285,44 @@ void t_cpp_client_generator::generate_service_multiface(t_service* tservice) {
   string list_type = string("std::vector<cxx::shared_ptr<") + service_name_ + "If> >";
 
   // Generate the header portion
-  f_header_ <<
+  f_service_h_ <<
     "class " << service_name_ << "Multiface : " <<
     "virtual public " << service_name_ << "If" <<
     extends_multiface << " {" << endl <<
     "public:" << endl;
   indent_up();
-  f_header_ <<
+  f_service_h_ <<
     indent() << service_name_ << "Multiface(" << list_type << "& ifaces) : ifaces_(ifaces) {" << endl;
   if (!extends.empty()) {
-    f_header_ <<
+    f_service_h_ <<
       indent(1) << "std::vector<cxx::shared_ptr<" + service_name_ + "If> >::iterator iter;" << endl <<
       indent(1) << "for (iter = ifaces.begin(); iter != ifaces.end(); ++iter) {" << endl <<
       indent(2) << "" << extends << "Multiface::add(*iter);" << endl <<
       indent(1) << "}" << endl;
   }
-  f_header_ <<
+  f_service_h_ <<
     indent() << "}" << endl <<
     indent() << "virtual ~" << service_name_ << "Multiface() {}" << endl;
   indent_down();
 
   // Protected data members
-  f_header_ <<
+  f_service_h_ <<
     "protected:" << endl;
   indent_up();
-  f_header_ <<
+  f_service_h_ <<
     indent() << list_type << " ifaces_;" << endl <<
     indent() << service_name_ << "Multiface() {}" << endl <<
     indent() << "void add(cxx::shared_ptr<" << service_name_ << "If> iface) {" << endl;
   if (!extends.empty()) {
-    f_header_ <<
+    f_service_h_ <<
       indent(1) << extends << "Multiface::add(iface);" << endl;
   }
-  f_header_ <<
+  f_service_h_ <<
     indent(1) << "ifaces_.push_back(iface);" << endl <<
     indent() << "}" << endl;
   indent_down();
 
-  f_header_ <<
+  f_service_h_ <<
     indent() << "public:" << endl;
   indent_up();
 
@@ -2744,7 +2334,7 @@ void t_cpp_client_generator::generate_service_multiface(t_service* tservice) {
     string call = string("ifaces_[i]->") + (*f_iter)->get_name() + "(";
     bool first = true;
     if (is_complex_type((*f_iter)->get_returntype())) {
-      call += "_return";
+      call += "response";
       first = false;
     }
     for (a_iter = args.begin(); a_iter != args.end(); ++a_iter) {
@@ -2757,42 +2347,42 @@ void t_cpp_client_generator::generate_service_multiface(t_service* tservice) {
     }
     call += ")";
 
-    f_header_ <<
+    f_service_h_ <<
       indent() << function_signature(*f_iter, "") << " {" << endl;
     indent_up();
-    f_header_ <<
+    f_service_h_ <<
       indent() << "size_t sz = ifaces_.size();" << endl <<
       indent() << "size_t i = 0;" << endl <<
       indent() << "for (; i < (sz - 1); ++i) {" << endl;
     indent_up();
-    f_header_ <<
+    f_service_h_ <<
       indent() << call << ";" << endl;
     indent_down();
-    f_header_ <<
+    f_service_h_ <<
       indent() << "}" << endl;
 
     if (!(*f_iter)->get_returntype()->is_void()) {
       if (is_complex_type((*f_iter)->get_returntype())) {
-        f_header_ <<
+        f_service_h_ <<
           indent() << call << ";" << endl <<
           indent() << "return;" << endl;
       } else {
-        f_header_ <<
+        f_service_h_ <<
           indent() << "return " << call << ";" << endl;
       }
     } else {
-      f_header_ <<
+      f_service_h_ <<
         indent() << call << ";" << endl;
     }
 
     indent_down();
-    f_header_ <<
+    f_service_h_ <<
       indent() << "}" << endl <<
       endl;
   }
 
   indent_down();
-  f_header_ <<
+  f_service_h_ <<
     indent() << "};" << endl <<
     endl;
 }
@@ -2803,922 +2393,389 @@ void t_cpp_client_generator::generate_service_multiface(t_service* tservice) {
  * @param tservice The service to generate a server for.
  */
 void t_cpp_client_generator::generate_service_client(t_service* tservice, string style) {
-  string ifstyle;
-  if (style == "Cob") {
-    ifstyle = "CobCl";
-  }
-
-  std::ofstream& out = (gen_templates_ ? f_service_tcc_ : f_service_);
-  string template_header, template_suffix, short_suffix, protocol_type, _this;
-  string const prot_factory_type =
-    "::pebble::rpc::protocol::TProtocolFactory";
-  if (gen_templates_) {
-    template_header = "template <class Protocol_>\n";
-    short_suffix = "T";
-    template_suffix = "T<Protocol_>";
-    protocol_type = "Protocol_";
-    _this = "this->";
-  } else {
-    protocol_type = "::pebble::rpc::protocol::TProtocol";
-  }
-  string prot_ptr = "cxx::shared_ptr< " + protocol_type + ">";
-  string client_suffix = "Client" + template_suffix;
+  std::ofstream& out = f_service_cpp_;
   string if_suffix = "If";
-  if (style == "Cob") {
-    if_suffix += template_suffix;
-  }
-
-  string struct_para = "const std::string& service_url = \"\", pebble::rpc::PROTOCOL_TYPE protocol_type = pebble::rpc::PROTOCOL_BINARY";
-  string struct_para_a = "const std::string& service_url, pebble::rpc::PROTOCOL_TYPE protocol_type";
-  string struct_para_1 = "const pebble::rpc::ConnectionObj& conn_obj";
-  string struct_para_2 = "pebble::rpc::RpcConnector* rpc_connector";
-  string struct_para_3 = "const std::string& custom_service_name";
-
-  string extends = "";
-  string extends_client = "";
-  if (tservice->get_extends() != NULL) {
-    // TODO(simpkins): If gen_templates_ is enabled, we currently assume all
-    // parent services were also generated with templates enabled.
-    extends = type_name(tservice->get_extends());
-    extends_client = ", public " + extends + style + client_suffix;
-  }
 
   // Generate the header portion
-  f_header_ <<
-    template_header <<
-    "class " << service_name_ << style << "Client" << short_suffix << " : " <<
-    "virtual public " << service_name_ << ifstyle << if_suffix <<
+  string client_suffix = "Client";
+  string extends_client = "";
+  if (tservice->get_extends() != NULL) {
+    extends_client = ", public " + type_name(tservice->get_extends()) + client_suffix;
+  }
+
+  f_service_h_ <<
+    "class " << service_name_ << client_suffix << " : " <<
+    "virtual public " << service_name_ << if_suffix <<
     extends_client << " {" << endl <<
     "public:" << endl;
 
   indent_up();
-  if (style != "Cob") {
-      f_header_ <<
-       indent() << service_name_ << style << "Client" << short_suffix <<
-       "(" << struct_para_2 << ");" << endl << endl;
 
-    if (extends.empty()) {
-      f_header_ << indent() << "/// @brief 设置服务别名" << endl;
-      f_header_ << indent() << "/// @note  为空时设置失败" << endl;
-      f_header_ << indent() << "void SetAlias(const std::string& alias);" << endl << endl;
-    }
+  f_service_h_ <<
+    indent() << service_name_ << client_suffix << "(pebble::PebbleRpc* rpc);" << endl <<
+    indent() << "virtual ~" << service_name_ << client_suffix << "();" << endl;
 
-    f_header_ <<
-      indent() << "virtual ~" << service_name_ << style << "Client" << short_suffix <<
-      "();" << endl << endl;
-
-    /*
-    if (extends.empty()) {
-      f_header_ <<  "{" << endl;
-      f_header_ <<
-      indent() << "  client_->FreeProtocol(piprot_);" << endl <<
-        indent() << "}" << endl;
-    } else {
-      f_header_ <<  "{}" << endl;
-    }
-    */
-
-    vector<t_function*> functions = tservice->get_functions();
-    vector<t_function*>::const_iterator f_iter;
-    for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
-      indent(f_header_) << function_signature_if(*f_iter, ifstyle) << ";" << endl;
-      if (!((*f_iter)->is_oneway())) {
-        indent(f_header_) << function_signature_if(*f_iter, "CobCl") << ";" << endl;
-      }
-    }
-    //indent_down();
-
-
-    // create the setProtocol methods
-    if (extends.empty()) {
-      f_header_ << endl << "private:"<<endl;
-      // 1: one parameter
-      f_header_ <<
-      indent() << "void setProtocol" << short_suffix << "("
-        << prot_ptr << " prot) {" <<endl;
-      f_header_ << indent(1) << "setProtocol" << short_suffix << "(prot, prot);"<<endl;
-      f_header_ << indent() << "}"<<endl;
-      // 2: two parameter
-      f_header_ <<
-      indent() << "void setProtocol" << short_suffix <<
-      "(" << prot_ptr << " iprot, " << prot_ptr << " oprot) {"<<endl;
-
-      f_header_ <<
-      indent(1) << "piprot_ = iprot;"<<endl <<
-      indent(1) << "poprot_ = oprot;"<<endl <<
-      indent(1) << "iprot_ = iprot.get();"<<endl <<
-      indent(1) << "oprot_ = oprot.get();"<<endl;
-
-      f_header_ << indent() << "}"<<endl;
-      //f_header_ << " public:"<<endl;
-    }
-
-
-    // Generate getters for the protocols.
-    // Note that these are not currently templated for simplicity.
-    // TODO(simpkins): should they be templated?
-    /*
-    f_header_ <<
-      indent() << "cxx::shared_ptr< ::pebble::rpc::protocol::TProtocol> getInputProtocol() {" << endl <<
-      indent() << "  return " << _this << "piprot_;" << endl <<
-      indent() << "}" << endl;
-
-    f_header_ <<
-      indent() << "cxx::shared_ptr< ::pebble::rpc::protocol::TProtocol> getOutputProtocol() {" << endl <<
-      indent() << "  return " << _this << "poprot_;" << endl <<
-      indent() << "}" << endl;
-      */
-
-  } else /* if (style == "Cob") */ {
-    f_header_ <<
-      indent() << service_name_ << style << "Client" << short_suffix << "(" <<
-      "cxx::shared_ptr< ::pebble::rpc::async::TAsyncChannel> channel, " <<
-      "::pebble::rpc::protocol::TProtocolFactory* protocolFactory) :" <<
+  if (tservice->get_extends() == NULL) {
+    f_service_h_ <<
+      indent() << "/* 设置连接句柄，RPC请求通过此句柄对应的连接发送 */" << endl <<
+      indent() << "void SetHandle(int64_t handle);" << endl << endl <<
+      indent() << "/* 设置路由函数，连接的选择交给路由回调函数处理，RPC请求通过路由回调函数选择的连接发送 */" << endl <<
+      indent() << "/* 设置路由回调函数后，不再使用SetHandle设置的连接句柄 */" << endl <<
+      indent() << "void SetRouteFunction(const cxx::function<int64_t(uint64_t key)>& route_callback);" << endl << endl <<
+      indent() << "/* 设置路由key，如使用取模或哈希路由策略时使用 */" << endl <<
+      indent() << "void SetRouteKey(uint64_t route_key);" << endl << endl <<
+      indent() << "/* 设置RPC请求超时时间(单位ms)，未指定方法名时对所有方法生效，指定方法名时只对指定方法生效，默认的超时时间为10s */" << endl <<
+      indent() << "int SetTimeout(uint32_t timeout_ms, const char* method_name = NULL);" << endl <<
       endl;
-    if (extends.empty()) {
-      f_header_ <<
-        indent(1) << "channel_(channel)," << endl <<
-        indent(1) << "itrans_(new ::pebble::rpc::transport::TMemoryBuffer())," << endl <<
-        indent(1) << "otrans_(new ::pebble::rpc::transport::TMemoryBuffer())," << endl;
-      if (gen_templates_) {
-        // TProtocolFactory classes return generic TProtocol pointers.
-        // We have to dynamic cast to the Protocol_ type we are expecting.
-        f_header_ <<
-          indent(1) << "piprot_(cxx::dynamic_pointer_cast<Protocol_>(" <<
-          "protocolFactory->getProtocol(itrans_)))," << endl <<
-          indent(1) << "poprot_(cxx::dynamic_pointer_cast<Protocol_>(" <<
-          "protocolFactory->getProtocol(otrans_))) {" << endl;
-        // Throw a TException if either dynamic cast failed.
-        f_header_ <<
-          indent(1) << "if (!piprot_ || !poprot_) {" << endl <<
-          indent(2) << "throw ::pebble::rpc::TException(\"" <<
-          "TProtocolFactory returned unexpected protocol type in " <<
-          service_name_ << style << "Client" << short_suffix <<
-          " constructor\");" << endl <<
-          indent(1) << "}" << endl;
-      } else {
-        f_header_ <<
-          indent(1) << "piprot_(protocolFactory->getProtocol(itrans_))," <<
-          endl <<
-          indent(1) << "poprot_(protocolFactory->getProtocol(otrans_)) {" <<
-          endl;
-      }
-      f_header_ <<
-        indent(1) << "iprot_ = piprot_.get();" << endl <<
-        indent(1) << "oprot_ = poprot_.get();" << endl <<
-        indent() << "}" << endl;
-    } else {
-      f_header_ <<
-        indent(1) << extends << style << client_suffix <<
-        "(channel, protocolFactory) {}" << endl;
-    }
   }
 
-  if (style == "Cob") {
-    f_header_ <<
-      indent() << "cxx::shared_ptr< ::pebble::rpc::async::TAsyncChannel> getChannel() {" << endl <<
-      indent(1) << "return " << _this << "channel_;" << endl <<
-      indent() << "}" << endl;
-    if (!gen_no_client_completion_) {
-      f_header_ <<
-        indent() << "virtual void completed__(bool /* success */) {}" << endl;
-    }
-  }
-
-  f_header_ << endl << "private:" << endl;
+  f_service_h_ << indent() << "/* IDL定义接口部分 - begin */" << endl;
   vector<t_function*> functions = tservice->get_functions();
   vector<t_function*>::const_iterator f_iter;
   for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
-    //indent(f_header_) << function_signature(*f_iter, ifstyle) << ";" << endl;
-    // TODO(dreiss): Use private inheritance to avoid generating thise in cob-style.
-    t_function send_function(g_type_void,
-        string("send_") + (*f_iter)->get_name(),
-        (*f_iter)->get_arglist());
-    indent(f_header_) << function_signature(&send_function, "") << ";" << endl;
+    if ((*f_iter)->is_oneway()) {
+      indent(f_service_h_) << function_signature_if(*f_iter, "") << ";" << endl;
+    } else {
+      indent(f_service_h_) << function_signature_if(*f_iter, "CobCl") << ";" << endl;
+    }
+  }
+
+  f_service_h_ << indent() << "/* IDL定义接口部分 - end */" << endl;
+
+  // 响应接收处理函数 recv_functionname & recv_functionname_sync
+  f_service_h_ << endl << "private:" << endl;
+  for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
     if (!(*f_iter)->is_oneway()) {
-      t_struct noargs(program_);
-      t_function recv_function((*f_iter)->get_returntype(),
-          string("recv_") + (*f_iter)->get_name(),
-          &noargs);
-      indent(f_header_) << function_signature(&recv_function, "", "", true, "::pebble::rpc::protocol::TProtocol* prot") << ";" << endl;
-      // 对基本类型返回值的函数增加一个recv，保持用户编程风格一致
-      if (!recv_function.get_returntype()->is_void()) {
-        if (!is_complex_type(recv_function.get_returntype())) {
-          indent(f_header_) <<
-            "void " << recv_function.get_name() <<
-            "(int ret, ::pebble::rpc::protocol::TProtocol* prot, cxx::function<void(int, " << type_name(recv_function.get_returntype()) << ")> cob);" << endl;
-        } else {
-          indent(f_header_) <<
-            "void " << recv_function.get_name() <<
-            "(int ret, ::pebble::rpc::protocol::TProtocol* prot, cxx::function<void(int, " << type_name(recv_function.get_returntype()) << "&)> cob);" << endl;
+      // 参数定义
+      std::string args = "int32_t ret, const uint8_t* buff, uint32_t buff_len";
+      std::string ret_sync;
+      std::string ret_parallel = ", int32_t* ret_code";
+      std::string ret_async(", cxx::function<void(int ret_code)>& cb");
+      if (!(*f_iter)->get_returntype()->is_void()) {
+        std::string type_ref;
+        std::string type_const;
+        if (is_complex_type((*f_iter)->get_returntype())) {
+            type_ref   = "&";
+            type_const = "const ";
         }
-      } else {
-        indent(f_header_) <<
-          "void " << recv_function.get_name() <<
-          "(int ret, ::pebble::rpc::protocol::TProtocol* prot, cxx::function<void(int)> cob);" << endl;
+        ret_sync  = ", " + type_name((*f_iter)->get_returntype()) + "* response";
+        ret_parallel = ", int32_t* ret_code, " + type_name((*f_iter)->get_returntype()) + "* response";
+        ret_async = ", cxx::function<void(int ret_code, " + type_const + type_name((*f_iter)->get_returntype())
+            + type_ref + " response)>" + "& cb";
       }
+
+      // async
+      f_service_h_ << indent() <<
+        "int32_t recv_" << (*f_iter)->get_name() << "(" << args << ret_async << ");" <<
+        endl;
     }
   }
   indent_down();
 
-  if (extends.empty()) {
-    f_header_ << endl << "protected:" << endl;
-    indent_up();
-
-    if (style == "Cob") {
-      f_header_ <<
-        indent() << "cxx::shared_ptr< ::pebble::rpc::async::TAsyncChannel> channel_;"  << endl <<
-        indent() << "cxx::shared_ptr< ::pebble::rpc::transport::TMemoryBuffer> itrans_;"  << endl <<
-        indent() << "cxx::shared_ptr< ::pebble::rpc::transport::TMemoryBuffer> otrans_;"  << endl;
-    }
-
-    f_header_ <<
-      indent() << prot_ptr << " piprot_;"  << endl <<
-      indent() << prot_ptr << " poprot_;"  << endl <<
-      indent() << protocol_type << "* iprot_;"  << endl <<
-      indent() << protocol_type << "* oprot_;"  << endl;
-    f_header_ << indent() << "::pebble::rpc::RpcConnector* client_;"  << endl;
-    f_header_ << indent() << "bool prot_owner_;"  << endl;
-
-    f_header_ << indent() << "std::string service_name;"  << endl;
-
-    indent_down();
+  if (tservice->get_extends() == NULL) {
+    f_service_h_ << endl << "public:" << endl;
+    f_service_h_ << indent(1) << "int64_t GetHandle();" << endl;
+    f_service_h_ << endl << "protected:" << endl;
+    f_service_h_ << indent(1) << "::pebble::PebbleRpc* m_client;" << endl;
+    f_service_h_ << indent(1) << "int64_t m_handle;" << endl;
+    f_service_h_ << indent(1) << "cxx::function<int64_t(uint64_t)> m_route_func;" << endl;
+    f_service_h_ << indent(1) << "uint64_t m_route_key;" << endl;
+    f_service_h_ << indent(1) << "cxx::unordered_map<std::string, int32_t> m_methods;" << endl;
   }
 
-  f_header_ <<
+  f_service_h_ <<
     "};" << endl <<
     endl;
 
-  if (gen_templates_) {
-    // Output a backwards compatibility typedef using
-    // TProtocol as the template parameter.
-    f_header_ <<
-      "typedef " << service_name_ << style <<
-      "ClientT< ::pebble::rpc::protocol::TProtocol> " <<
-      service_name_ << style << "Client;" << endl <<
-      endl;
-  }
-
-  string scope = service_name_ + style + client_suffix + "::";
+  string scope = service_name_ + client_suffix + "::";
 
   // Generate client method implementations
-    out <<
-      scope << service_name_ << style << "Client" << short_suffix <<
-      "(" << struct_para_2 << ") ";
-
-    if (extends.empty()) {
-      out <<  "{" << endl;
-      out <<
-      indent(1) << "prot_owner_ = true;" << endl <<
-      indent(1) << "client_ = rpc_connector;" << endl <<
-      indent(1) << "service_name = \"" << service_name_ << "\";" << endl <<
-      indent(1) << "setProtocol" << short_suffix
-      << "(client_->GetProtocol());" << endl <<
-        indent() << "}" << endl;
-    } else {
-      out <<  ":" << endl;
-      out <<
-        indent(1) << extends << style << client_suffix <<
-        "(rpc_connector) {" << endl
-        << indent(1) << "service_name = \"" << service_name_ << "\";" << endl
-        << "}" << endl;
-    }
-    out << endl;
-
   out <<
-    scope << "~" << service_name_ << style << "Client" << short_suffix <<
-    "() ";
+    scope << service_name_ << client_suffix << "(pebble::PebbleRpc* rpc)";
 
-  if (extends.empty()) {
-    out <<  "{" << endl;
-    out <<
-    indent(1) << "if (prot_owner_) { client_->FreeProtocol(piprot_); }" << endl <<
-      indent() << "}" << endl << endl;
-
-    out << "void " << scope << "SetAlias(const std::string& alias)" << endl;
-        out << "{" << endl;
-        out << indent(1) << "if (alias.empty()) {" << endl;
-        out << indent(2) << "return;" << endl;
-        out << indent(1) << "}" << endl << endl;
-        out << indent(1) << "service_name = alias;" << endl;
-        out << "}" << endl << endl;
+  if (tservice->get_extends() == NULL) {
+    out <<  " {" << endl;
+    out << indent(1) << "m_client = rpc;" << endl;
+    out << indent(1) << "m_route_key = 0;" << endl;
+    for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
+      out << indent(1) << "m_methods[\"" << (*f_iter)->get_name() << "\"] = " << (*f_iter)->get_timeout_ms() << ";" << endl;
+    }
+    out << indent() << "}" << endl;
   } else {
-    out <<  "{}" << endl;
+    out <<  ":" << endl;
+    out <<
+      indent(1) << type_name(tservice->get_extends()) << client_suffix <<
+      "(rpc) {" << endl;
+      for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
+        out << indent(1) << "m_methods[\"" << (*f_iter)->get_name() << "\"] = " << (*f_iter)->get_timeout_ms() << ";" << endl;
+      }
+    out << indent() << "}" << endl;
   }
   out << endl;
 
+
+  out <<
+    scope << "~" << service_name_ << client_suffix << "() {}" << endl <<
+    endl;
+
+  if (tservice->get_extends() == NULL) {
+    out << "void " << scope << "SetHandle(int64_t handle) {" << endl <<
+      indent(1) << "m_handle = handle;" << endl <<
+      "}" << endl <<
+      endl;
+
+    out << "void " << scope << "SetRouteFunction(const cxx::function<int64_t(uint64_t key)>& route_func) {" << endl <<
+      indent(1) << "m_route_func = route_func;" << endl <<
+      "}" << endl <<
+      endl;
+
+    out << "void " << scope << "SetRouteKey(uint64_t route_key) {" << endl <<
+      indent(1) << "m_route_key = route_key;" << endl <<
+      "}" << endl <<
+      endl;
+
+    out << "int " << scope << "SetTimeout(uint32_t timeout_ms, const char* method_name) {" << endl <<
+      indent(1) << "if (method_name != NULL) {" << endl <<
+      indent(2) << "cxx::unordered_map<std::string, int32_t>::iterator it = m_methods.find(method_name);" << endl <<
+      indent(2) << "if (it == m_methods.end()) {" << endl <<
+      indent(3) << "return pebble::kRPC_UNSUPPORT_FUNCTION_NAME;" << endl <<
+      indent(2) << "}" << endl <<
+      indent(2) << "it->second = timeout_ms;" << endl <<
+      indent(2) << "return 0;" << endl <<
+      indent(1) << "}" << endl <<
+      endl <<
+      indent(1) << "for (cxx::unordered_map<std::string, int32_t>::iterator it = m_methods.begin(); it != m_methods.end(); ++it) {" << endl <<
+      indent(2) << "it->second = timeout_ms;" << endl <<
+      indent(1) << "}" << endl << endl <<
+      indent(1) << "return 0;" << endl <<
+      "}" << endl <<
+      endl;
+
+    out << "int64_t " << scope << "GetHandle() {" << endl <<
+      indent(1) << "if (m_route_func) {" << endl <<
+      indent(2) << "return m_route_func(m_route_key);" << endl <<
+      indent(1) << "}" << endl <<
+      endl <<
+      indent(1) << "return m_handle;" << endl <<
+      "}" << endl <<
+      endl;
+  }
+
   for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
     string funname = (*f_iter)->get_name();
+    string argsname = tservice->get_name() + "_" + (*f_iter)->get_name() + "_pargs";
+    const vector<t_field*>& fields = (*f_iter)->get_arglist()->get_members();
+    vector<t_field*>::const_iterator fld_iter;
 
-    // Open function
-    if (gen_templates_) {
-      indent(out) << template_header;
-    }
-    indent(out) <<
-      function_signature_if(*f_iter, ifstyle, scope) << endl;
+    // 同步接口实现
+    if ((*f_iter)->is_oneway()) {
+    indent(out) << function_signature_if(*f_iter, "", scope) << endl;
     scope_up(out);
 
-    indent(out) << "if (!piprot_) {" << endl
-                << indent(1) << "return pebble::rpc::ErrorInfo::kOtherException;" << endl
-                << indent() << "}" << endl;
+    out << indent() << "::pebble::dr::protocol::TProtocol* encoder =" << endl << indent(1) <<
+        "m_client->GetCodec(pebble::PebbleRpc::kMALLOC);" << endl << indent() <<
+        "if (!encoder) {" << endl << indent(1) <<
+        "return ::pebble::kPEBBLE_RPC_UNKNOWN_CODEC_TYPE;" << endl << indent() <<
+        "}" << endl <<
+        endl;
 
-    indent(out) << "try {" << endl;
 
-    // send call
-    indent(out) << indent() <<
-      "send_" << funname << "(";
-
-    // Get the struct of function call params
-    t_struct* arg_struct = (*f_iter)->get_arglist();
-
-    // Declare the function arguments
-    const vector<t_field*>& fields = arg_struct->get_members();
-    vector<t_field*>::const_iterator fld_iter;
-    bool first = true;
-    for (fld_iter = fields.begin(); fld_iter != fields.end(); ++fld_iter) {
-      if (first) {
-        first = false;
-      } else {
-        out << ", ";
-      }
-      out << (*fld_iter)->get_name();
-    }
-    out << ");" << endl;
-
-    indent(out) << "} catch (pebble::rpc::TException ex) {" << endl;
-    indent(out) << indent() << "return pebble::rpc::ErrorInfo::kSendRequestFailed;" << endl;
-    indent(out) << "}" << endl;
-
-    if (style != "Cob") {
-      if (!(*f_iter)->is_oneway()) {
-        out << indent() << "::pebble::rpc::protocol::TProtocol* in_prot = NULL;" << endl;
-        out << indent() << "int block_ret = client_->Block(&in_prot, "
-            << (*f_iter)->get_timeout_ms() << ");" << endl;
-        out << indent() << "if (pebble::rpc::ErrorInfo::kRpcNoRrror == block_ret) {" << endl;
-
-        out << indent() << indent() << "try {" << endl;
-
-        // recv call
-        out << indent() << indent() << indent();
-        if (!(*f_iter)->get_returntype()->is_void()) {
-          if (is_complex_type((*f_iter)->get_returntype())) {
-            out << "recv_" << funname << "(in_prot, _return);" << endl;
-          } else {
-            out << "_return = recv_" << funname << "(in_prot);" << endl;
-          }
-        } else {
-          out <<
-            "recv_" << funname << "(in_prot);" << endl;
-        }
-
-        out << indent() << indent() << "} catch (pebble::rpc::TException ex) {" << endl;
-        out << indent() << indent(1) << "return pebble::rpc::ErrorInfo::kRecvFailed;" << endl;
-        out << indent() << indent() << "}" << endl;
-
-        out << indent() << "} else {" << endl;
-        out << indent() << indent() << "return block_ret;" << endl;
-        out << indent() << "}" << endl;
-      }
-      out << indent() << "return pebble::rpc::ErrorInfo::kRpcNoRrror;" << endl;
+    out << indent() <<
+        "::pebble::RpcHead head;" << endl << indent() <<
+        "head.m_function_name.assign(\"" << service_name_ << ":" << funname << "\");" << endl << indent();
+    if (!(*f_iter)->is_oneway()) {
+        out << "head.m_message_type = pebble::dr::protocol::T_CALL;" << endl << indent();
     } else {
-      if (!(*f_iter)->is_oneway()) {
-        out <<
-          indent() << _this << "channel_->sendAndRecvMessage(" <<
-          "cxx::bind(cob, this), " << _this << "otrans_.get(), " <<
-          _this << "itrans_.get());" << endl;
-      } else {
-        out <<
-        indent() << _this << "channel_->sendMessage(" <<
-          "cxx::bind(cob, this), " << _this << "otrans_.get());" << endl;
-      }
+        out << "head.m_message_type = pebble::dr::protocol::T_ONEWAY;" << endl << indent();
     }
-    scope_down(out);
+    out << "head.m_session_id = m_client->GenSessionId();" << endl << endl;
+
+    out << indent() << argsname << " args;" << endl;
+    for (fld_iter = fields.begin(); fld_iter != fields.end(); ++fld_iter) {
+      out <<
+        indent() << "args." << (*fld_iter)->get_name() << " = &" << (*fld_iter)->get_name() << ";" << endl;
+    }
     out << endl;
 
+    out << indent() <<
+      "try {" << endl << indent(1) <<
+      "args.write(encoder);" << endl << indent(1) <<
+      "encoder->writeMessageEnd();" << endl << indent(1) <<
+      "encoder->getTransport()->writeEnd();" << endl << indent() <<
+      "} catch (pebble::TException ex) {" << endl << indent(1) <<
+      "return pebble::kRPC_ENCODE_FAILED;" << endl << indent() <<
+      "}" << endl <<
+      endl;
+
+    out << indent() <<
+      "uint8_t* buff = NULL;" << endl << indent() <<
+      "uint32_t buff_len = 0;" << endl << indent() <<
+      "(static_cast<pebble::dr::transport::TMemoryBuffer*>(encoder->getTransport().get()))->" << endl << indent(1) <<
+      "getBuffer(&buff, &buff_len);" << endl <<
+      endl;
+
+
+      out << indent() <<
+        "pebble::OnRpcResponse on_rsp;" << endl << indent() <<
+        "return m_client->SendRequest(GetHandle(), head, buff, buff_len, on_rsp, m_methods[\"" << funname << "\"]);" << endl << indent(1) <<
+        endl;
+
+
+    scope_down(out);
+    out <<
+      endl;
+
     // async function
-    if (!(*f_iter)->is_oneway()) {
-        indent(out) <<
-          function_signature_if(*f_iter, "CobCl", scope) << endl;
-        scope_up(out);
-
-        indent(out) << "if (!piprot_) {" << endl ;
-        std::string call_fail("cob(pebble::rpc::ErrorInfo::kOtherException);");
-        if (!(*f_iter)->get_returntype()->is_void()) {
-          t_field returnfield((*f_iter)->get_returntype(), "_return");
-          out << indent() <<
-            indent() << declare_field(&returnfield, true) << endl;
-          call_fail = "cob(pebble::rpc::ErrorInfo::kOtherException, _return);";
-        }
-
-        out << indent(1) << call_fail << endl
-            << indent(1) << "return;" << endl
-            << indent() << "}" << endl;
-
-        indent(out) << "try {" << endl;
-
-        // call send
-        indent(out) << indent() <<
-          "send_" << funname << "(";
-
-        // Get the struct of function call params
-        //t_struct* arg_struct = (*f_iter)->get_arglist();
-
-        // Declare the function arguments
-        //const vector<t_field*>& fields = arg_struct->get_members();
-        //vector<t_field*>::const_iterator fld_iter;
-        first = true;
-        for (fld_iter = fields.begin(); fld_iter != fields.end(); ++fld_iter) {
-          if (first) {
-            first = false;
-          } else {
-            out << ", ";
-          }
-          out << (*fld_iter)->get_name();
-        }
-        out << ");" << endl;
-
-        indent(out) << "} catch (pebble::rpc::TException ex) {" << endl;
-        call_fail = "cob(pebble::rpc::ErrorInfo::kSendRequestFailed);";
-        if (!(*f_iter)->get_returntype()->is_void()) {
-          t_field returnfield((*f_iter)->get_returntype(), "_return");
-          out << indent() <<
-            indent() << declare_field(&returnfield, true) << endl;
-          call_fail = "cob(pebble::rpc::ErrorInfo::kSendRequestFailed, _return);";
-        }
-
-        out << indent(1) << call_fail << endl
-            << indent(1) << "return;" << endl
-            << indent() << "}" << endl;
-
-        if (style != "Cob") {
-          if (!(*f_iter)->is_oneway()) {
-            std::string bind_overload_func("");
-            if (!(*f_iter)->get_returntype()->is_void()) {
-              if (!is_complex_type((*f_iter)->get_returntype())) {
-                bind_overload_func = "static_cast<void(" + service_name_
-                  + "Client::*)(int, ::pebble::rpc::protocol::TProtocol* prot, cxx::function<void(int, " + type_name((*f_iter)->get_returntype()) + ")>)>";
-              } else {
-                bind_overload_func = "static_cast<void(" + service_name_
-                  + "Client::*)(int, ::pebble::rpc::protocol::TProtocol* prot, cxx::function<void(int, " + type_name((*f_iter)->get_returntype()) + "&)>)>";
-              }
-            } else {
-              bind_overload_func = "static_cast<void(" + service_name_
-                + "Client::*)(int, ::pebble::rpc::protocol::TProtocol* prot, cxx::function<void(int)>)>";
-            }
-            out << indent() << "cxx::function<void(int, ::pebble::rpc::protocol::TProtocol*)> recv_cob = cxx::bind("
-                << bind_overload_func << "(&" <<
-                service_name_ << "Client::recv_" << funname << "), this";
-
-            //if (!(*f_iter)->get_returntype()->is_void()) {
-              //if (is_complex_type((*f_iter)->get_returntype())) {
-                out << ", cxx::placeholders::_1, cxx::placeholders::_2, cob);" << endl;
-              //} else {
-              //  out << ");" << endl;
-              //}
-            //}
-            out << indent() << "client_->AddSession(recv_cob, " <<
-                (*f_iter)->get_timeout_ms() << ");" << endl;
-          }
-        }
-        scope_down(out);
-        out << endl;
-    }
-
-    //if (style != "Cob") // TODO(dreiss): Libify the client and don't generate this for cob-style
-    if (true) {
-      // Function for sending
-      t_function send_function(g_type_void,
-                               string("send_") + (*f_iter)->get_name(),
-                               (*f_iter)->get_arglist());
-
-      // Open the send function
-      if (gen_templates_) {
-        indent(out) << template_header;
-      }
-      indent(out) <<
-        function_signature(&send_function, "", scope) << endl;
+    } else {
+      indent(out) << function_signature_if(*f_iter, "CobCl", scope) << endl;
       scope_up(out);
 
-      // Function arguments and results
-      string argsname = tservice->get_name() + "_" + (*f_iter)->get_name() + "_pargs";
-      string resultname = tservice->get_name() + "_" + (*f_iter)->get_name() + "_presult";
+      std::string ret_str;
+      if (!(*f_iter)->get_returntype()->is_void()) {
+        t_field returnfield((*f_iter)->get_returntype(), "response");
+        out << indent() << declare_field(&returnfield, true) << endl;
+        ret_str = ", response";
+      }
 
-      // Serialize the request
-      out <<
-        //indent() << "int32_t cseqid = 0;" << endl <<
-        indent() << _this << "oprot_->writeMessageBegin(\"" <<
-        service_name_ << ":" <<
-        (*f_iter)->get_name() <<
-        "\", ::pebble::rpc::protocol::" <<
-        ((*f_iter)->is_oneway() ? "T_ONEWAY" : "T_CALL") <<
-        ", client_->GenSequence());" << endl <<
-        endl <<
-        indent() << argsname << " args;" << endl;
+      out << indent() << "::pebble::dr::protocol::TProtocol* encoder =" << endl << indent(1) <<
+          "m_client->GetCodec(pebble::PebbleRpc::kMALLOC);" << endl << indent() <<
+          "if (!encoder) {" << endl << indent(1) <<
+          "cb(::pebble::kPEBBLE_RPC_UNKNOWN_CODEC_TYPE" << ret_str << ");" << endl << indent(1) <<
+          "return;" << endl << indent() <<
+          "}" << endl <<
+          endl;
 
+      out << indent() <<
+          "::pebble::RpcHead head;" << endl << indent() <<
+          "head.m_function_name.assign(\"" << service_name_ << ":" << funname << "\");" << endl << indent();
+      if (!(*f_iter)->is_oneway()) {
+          out << "head.m_message_type = pebble::dr::protocol::T_CALL;" << endl << indent();
+      } else {
+          out << "head.m_message_type = pebble::dr::protocol::T_ONEWAY;" << endl << indent();
+      }
+      out << "head.m_session_id = m_client->GenSessionId();" << endl << endl;
+
+      out << indent() << argsname << " args;" << endl;
       for (fld_iter = fields.begin(); fld_iter != fields.end(); ++fld_iter) {
         out <<
           indent() << "args." << (*fld_iter)->get_name() << " = &" << (*fld_iter)->get_name() << ";" << endl;
       }
+      out << endl;
 
-      out <<
-        indent() << "args.write(" << _this << "oprot_);" << endl <<
-        endl <<
-        indent() << _this << "oprot_->writeMessageEnd();" << endl;
-      out << indent() << _this << "oprot_->getTransport()->setServiceName(service_name);" << endl;
-      out <<
-        indent() << _this << "oprot_->getTransport()->writeEnd();" << endl <<
-        indent() << _this << "oprot_->getTransport()->flush();" << endl;
+      out << indent() <<
+        "try {" << endl << indent(1) <<
+        "args.write(encoder);" << endl << indent(1) <<
+        "encoder->writeMessageEnd();" << endl << indent(1) <<
+        "encoder->getTransport()->writeEnd();" << endl << indent() <<
+        "} catch (pebble::TException ex) {" << endl << indent(1) <<
+        "cb(pebble::kRPC_ENCODE_FAILED" << ret_str << ");" << endl << indent(1) <<
+        "return;" << endl << indent() <<
+        "}" << endl <<
+        endl;
+
+      out << indent() <<
+        "uint8_t* buff = NULL;" << endl << indent() <<
+        "uint32_t buff_len = 0;" << endl << indent() <<
+        "(static_cast<pebble::dr::transport::TMemoryBuffer*>(encoder->getTransport().get()))->" << endl << indent(1) <<
+        "getBuffer(&buff, &buff_len);" << endl <<
+        endl;
+
+
+      out << indent() <<
+        "pebble::OnRpcResponse on_rsp = cxx::bind(&" << scope << "recv_" << funname << ", this," << endl << indent(1) <<
+        "cxx::placeholders::_1, cxx::placeholders::_2, cxx::placeholders::_3, cb);" << endl << indent() <<
+        "int32_t ret = m_client->SendRequest(GetHandle(), head, buff, buff_len, on_rsp, m_methods[\"" << funname << "\"]);" << endl << indent() <<
+        "if (ret != pebble::kRPC_SUCCESS) {" << endl << indent(1) <<
+        "cb(ret" << ret_str << ");" << endl << indent(1) <<
+        "return;" << endl << indent(1) <<
+        "}" << endl;
+
+        scope_down(out);
+        out << endl;
+
+      // 响应函数实现 recv_functionname
+      std::string ret_async = ", cxx::function<void(int ret_code)>& cb";
+      std::string ret_value;
+      if (!(*f_iter)->get_returntype()->is_void()) {
+        std::string type_const;
+        std::string type_ref;
+        if (is_complex_type((*f_iter)->get_returntype())) {
+            type_const = "const ";
+            type_ref   = "&";
+        }
+        ret_async = ", cxx::function<void(int ret_code, " + type_const + type_name((*f_iter)->get_returntype()) + type_ref + " response)>& cb";
+        ret_value = ", response";
+      }
+      out << indent() <<
+        "int32_t " << scope << "recv_" << (*f_iter)->get_name() <<
+        "(int32_t ret, const uint8_t* buff, uint32_t buff_len" <<
+        ret_async << ")" <<
+        endl;
+
+      scope_up(out);
+
+      if (!(*f_iter)->get_returntype()->is_void()) {
+        t_field returnfield((*f_iter)->get_returntype(), "response");
+        out << indent() << declare_field(&returnfield, true) << endl;
+      }
+
+      out << indent() <<
+        "if (ret != pebble::kRPC_SUCCESS) {" << endl << indent(1) <<
+        "if (0 == buff_len) {" << endl << indent(2) <<
+        "cb(ret" << ret_value << ");" << endl << indent(2) <<
+        "return ret;" << endl << indent(1) <<
+        "}" << endl << indent() <<
+        "}" << endl <<
+        endl;
+
+      out << indent() <<
+        "::pebble::dr::protocol::TProtocol* decoder =" << endl << indent(1) <<
+        "m_client->GetCodec(pebble::PebbleRpc::kBORROW);" << endl << indent() <<
+        "if (!decoder) {" << endl << indent(1) <<
+        "cb(::pebble::kPEBBLE_RPC_UNKNOWN_CODEC_TYPE" << ret_value << ");" << endl << indent(1) <<
+        "return ::pebble::kPEBBLE_RPC_UNKNOWN_CODEC_TYPE;" << endl << indent() <<
+        "}" << endl <<
+        endl;
+
+      out << indent() <<
+        "(static_cast<pebble::dr::transport::TMemoryBuffer*>(decoder->getTransport().get()))->" << endl << indent(1) <<
+        "resetBuffer(const_cast<uint8_t*>(buff), buff_len, ::pebble::dr::transport::TMemoryBuffer::OBSERVE);" << endl << indent(1) <<
+        endl;
+
+      out << indent() <<
+        tservice->get_name() << "_" << (*f_iter)->get_name() << "_presult result;" << endl;
+      if (!(*f_iter)->get_returntype()->is_void()) {
+        out << indent() <<
+          "result.success = &response;" << endl;
+      }
+      out << indent() <<
+        "try {" << endl << indent(1) <<
+        "result.read(decoder);" << endl << indent(1) <<
+        "decoder->readMessageEnd();" << endl << indent(1) <<
+        "decoder->getTransport()->readEnd();" << endl << indent() <<
+        "} catch (pebble::TException ex) {" << endl << indent(1) <<
+        "cb(pebble::kRPC_DECODE_FAILED" << ret_value << ");" << endl << indent(1) <<
+        "return pebble::kRPC_DECODE_FAILED;" << endl << indent() <<
+        "}" << endl <<
+        endl;
+
+      if (!(*f_iter)->get_returntype()->is_void()) {
+        out << indent() <<
+          "if (!result.__isset.success) {" << endl << indent(1) <<
+          "cb(pebble::kPEBBLE_RPC_MISS_RESULT" << ret_value << ");" << endl << indent(1) <<
+          "return pebble::kPEBBLE_RPC_MISS_RESULT;" << endl << indent() <<
+          "}" << endl <<
+          endl;
+      }
+
+      out << indent() <<
+        "cb(ret != pebble::kRPC_SUCCESS ? ret : pebble::kRPC_SUCCESS" << ret_value << ");" << endl << indent() <<
+        "return ret != pebble::kRPC_SUCCESS ? ret : pebble::kRPC_SUCCESS;" << endl;
 
       scope_down(out);
       out << endl;
-
-      // Generate recv function only if not an oneway function
-      if (!(*f_iter)->is_oneway()) {
-        t_struct noargs(program_);
-        t_function recv_function((*f_iter)->get_returntype(),
-                                 string("recv_") + (*f_iter)->get_name(),
-                                 &noargs);
-        // Open the recv function
-        if (gen_templates_) {
-          indent(out) << template_header;
-        }
-        indent(out) <<
-          function_signature(&recv_function, "", scope, true, "::pebble::rpc::protocol::TProtocol* prot") << endl;
-        scope_up(out);
-
-        //out <<
-          //endl; // <<
-          /*
-          indent() << "int32_t rseqid = 0;" << endl <<
-          indent() << "std::string fname;" << endl <<
-          indent() << "::pebble::rpc::protocol::TMessageType mtype;" << endl;
-          */
-        if (style == "Cob" && !gen_no_client_completion_) {
-          out <<
-            indent() << "bool completed = false;" << endl << endl <<
-            indent() << "try {";
-          indent_up();
-        }
-        /*
-        out << endl <<
-          indent() << _this << "iprot_->readMessageBegin(fname, mtype, rseqid);" << endl <<
-          indent() << "if (mtype == ::pebble::rpc::protocol::T_EXCEPTION) {" << endl <<
-          indent() << "  ::pebble::rpc::TApplicationException x;" << endl <<
-          indent() << "  x.read(" << _this << "iprot_);" << endl <<
-          indent() << "  " << _this << "iprot_->readMessageEnd();" << endl <<
-          indent() << "  " << _this << "iprot_->getTransport()->readEnd();" <<
-          endl;
-          */
-        if (style == "Cob" && !gen_no_client_completion_) {
-          out <<
-            indent(1) << "completed = true;" << endl <<
-            indent(1) << "completed__(true);" << endl;
-        }
-        /*
-        out <<
-          indent() << "  throw x;" << endl <<
-          indent() << "}" << endl <<
-          indent() << "if (mtype != ::pebble::rpc::protocol::T_REPLY) {" << endl <<
-          indent() << "  " << _this << "iprot_->skip(" <<
-          "::pebble::rpc::protocol::T_STRUCT);" << endl <<
-          indent() << "  " << _this << "iprot_->readMessageEnd();" << endl <<
-          indent() << "  " << _this << "iprot_->getTransport()->readEnd();" <<
-          endl;
-          */
-        if (style == "Cob" && !gen_no_client_completion_) {
-          out <<
-            indent(1) << "completed = true;" << endl <<
-            indent(1) << "completed__(false);" << endl;
-        }
-        /*
-        out <<
-          indent() << "}" << endl <<
-          indent() << "if (fname.compare(\"" << (*f_iter)->get_name() << "\") != 0) {" << endl <<
-          indent() << "  " << _this << "iprot_->skip(" <<
-          "::pebble::rpc::protocol::T_STRUCT);" << endl <<
-          indent() << "  " << _this << "iprot_->readMessageEnd();" << endl <<
-          indent() << "  " << _this << "iprot_->getTransport()->readEnd();" <<
-          endl;
-          */
-        if (style == "Cob" && !gen_no_client_completion_) {
-          out <<
-            indent(1) << "completed = true;" << endl <<
-            indent(1) << "completed__(false);" << endl;
-        }
-        //out <<
-        //  indent() << "}" << endl;
-
-        out << indent() << "if (!prot) {" << endl;
-        out << indent(1) << "throw ::pebble::rpc::TApplicationException(::pebble::rpc::TApplicationException::INTERNAL_ERROR, \"protocol is null\");" << endl;
-        out << indent() << "}" << endl;
-
-        if (!(*f_iter)->get_returntype()->is_void() &&
-            !is_complex_type((*f_iter)->get_returntype())) {
-          t_field returnfield((*f_iter)->get_returntype(), "_return");
-          out <<
-            indent() << declare_field(&returnfield) << endl;
-        }
-
-        out <<
-          indent() << resultname << " result;" << endl;
-
-        if (!(*f_iter)->get_returntype()->is_void()) {
-          out <<
-            indent() << "result.success = &_return;" << endl;
-        }
-
-        out <<
-          indent() << "result.read(" << _this << "prot);" << endl <<
-          indent() << _this << "prot->readMessageEnd();" << endl <<
-          indent() << _this << "prot->getTransport()->readEnd();" << endl <<
-          endl;
-
-        // Careful, only look for _result if not a void function
-        if (!(*f_iter)->get_returntype()->is_void()) {
-          if (is_complex_type((*f_iter)->get_returntype())) {
-            out <<
-              indent() << "if (result.__isset.success) {" << endl <<
-              indent(1) << "// _return pointer has now been filled" << endl;
-            if (style == "Cob" && !gen_no_client_completion_) {
-              out <<
-                indent(1) << "completed = true;" << endl <<
-                indent(1) << "completed__(true);" << endl;
-            }
-            out <<
-              //indent() << "  cob(0, _return);" << endl <<
-              indent(1) << "return;" << endl <<
-              indent() << "}" << endl;
-          } else {
-            out <<
-              indent() << "if (result.__isset.success) {" << endl;
-            if (style == "Cob" && !gen_no_client_completion_) {
-              out <<
-                indent(1) << "completed = true;" << endl <<
-                indent(1) << "completed__(true);" << endl;
-            }
-            out <<
-              indent(1) << "return _return;" << endl <<
-              indent() << "}" << endl;
-          }
-        }
-
-        t_struct* xs = (*f_iter)->get_xceptions();
-        const std::vector<t_field*>& xceptions = xs->get_members();
-        vector<t_field*>::const_iterator x_iter;
-        for (x_iter = xceptions.begin(); x_iter != xceptions.end(); ++x_iter) {
-          out <<
-            indent() << "if (result.__isset." << (*x_iter)->get_name() << ") {" << endl;
-          if (style == "Cob" && !gen_no_client_completion_) {
-            out <<
-              indent(1) << "completed = true;" << endl <<
-              indent(1) << "completed__(true);" << endl;
-          }
-          out  <<
-            indent(1) << "throw result." << (*x_iter)->get_name() << ";" << endl <<
-            indent() << "}" << endl;
-        }
-
-        // We only get here if we are a void function
-        if ((*f_iter)->get_returntype()->is_void()) {
-          if (style == "Cob" && !gen_no_client_completion_) {
-            out <<
-              indent() << "completed = true;" << endl <<
-              indent() << "completed__(true);" << endl;
-          }
-          indent(out) <<
-            "return;" << endl;
-        } else {
-          if (style == "Cob" && !gen_no_client_completion_) {
-            out <<
-              indent() << "completed = true;" << endl <<
-              indent() << "completed__(true);" << endl;
-          }
-          out <<
-            indent() << "throw ::pebble::rpc::TApplicationException(::pebble::rpc::TApplicationException::MISSING_RESULT, \"" << (*f_iter)->get_name() << " failed: unknown result\");" << endl;
-        }
-        if (style == "Cob" && !gen_no_client_completion_) {
-          indent_down();
-          out <<
-            indent() << "} catch (...) {" << endl <<
-            indent(1) << "if (!completed) {" << endl <<
-            indent(2) << "completed__(false);" << endl <<
-            indent(1) << "}" << endl <<
-            indent(1) << "throw;" << endl <<
-            indent() << "}" << endl;
-        }
-        // Close function
-        scope_down(out);
-        out << endl;
-
-        // async recv func.
-        //if (recv_function.get_returntype()->is_void()) {
-        //  continue;
-        //}
-        // Open the recv function
-        if (gen_templates_) {
-          indent(out) << template_header;
-        }
-        if (!recv_function.get_returntype()->is_void()) {
-          if (!is_complex_type(recv_function.get_returntype())) {
-            indent(out) <<
-              "void " << scope << recv_function.get_name() <<
-              "(int ret, ::pebble::rpc::protocol::TProtocol* prot, cxx::function<void(int, " << type_name(recv_function.get_returntype()) << ")> cob)" << endl;
-          } else {
-            indent(out) <<
-              "void " << scope << recv_function.get_name() <<
-              "(int ret, ::pebble::rpc::protocol::TProtocol* prot, cxx::function<void(int, " << type_name(recv_function.get_returntype()) << "&)> cob)" << endl;
-          }
-        } else {
-          indent(out) <<
-            "void " << scope << recv_function.get_name() <<
-            "(int ret, ::pebble::rpc::protocol::TProtocol* prot, cxx::function<void(int)> cob)" << endl;
-        }
-        scope_up(out);
-
-        //out <<
-          //endl; // <<
-          /*
-          indent() << "int32_t rseqid = 0;" << endl <<
-          indent() << "std::string fname;" << endl <<
-          indent() << "::pebble::rpc::protocol::TMessageType mtype;" << endl;
-          */
-        if (style == "Cob" && !gen_no_client_completion_) {
-          out <<
-            indent() << "bool completed = false;" << endl << endl <<
-            indent() << "try {";
-          indent_up();
-        }
-        /*
-        out << endl <<
-          indent() << _this << "iprot_->readMessageBegin(fname, mtype, rseqid);" << endl <<
-          indent() << "if (mtype == ::pebble::rpc::protocol::T_EXCEPTION) {" << endl <<
-          indent() << "  ::pebble::rpc::TApplicationException x;" << endl <<
-          indent() << "  x.read(" << _this << "iprot_);" << endl <<
-          indent() << "  " << _this << "iprot_->readMessageEnd();" << endl <<
-          indent() << "  " << _this << "iprot_->getTransport()->readEnd();" <<
-          endl;
-          */
-        if (style == "Cob" && !gen_no_client_completion_) {
-          out <<
-            indent(1) << "completed = true;" << endl <<
-            indent(1) << "completed__(true);" << endl;
-        }
-        /*
-        out <<
-          indent() << "  throw x;" << endl <<
-          indent() << "}" << endl <<
-          indent() << "if (mtype != ::pebble::rpc::protocol::T_REPLY) {" << endl <<
-          indent() << "  " << _this << "iprot_->skip(" <<
-          "::pebble::rpc::protocol::T_STRUCT);" << endl <<
-          indent() << "  " << _this << "iprot_->readMessageEnd();" << endl <<
-          indent() << "  " << _this << "iprot_->getTransport()->readEnd();" <<
-          endl;
-          */
-        if (style == "Cob" && !gen_no_client_completion_) {
-          out <<
-            indent(1) << "completed = true;" << endl <<
-            indent(1) << "completed__(false);" << endl;
-        }
-        /*
-        out <<
-          indent() << "}" << endl <<
-          indent() << "if (fname.compare(\"" << (*f_iter)->get_name() << "\") != 0) {" << endl <<
-          indent() << "  " << _this << "iprot_->skip(" <<
-          "::pebble::rpc::protocol::T_STRUCT);" << endl <<
-          indent() << "  " << _this << "iprot_->readMessageEnd();" << endl <<
-          indent() << "  " << _this << "iprot_->getTransport()->readEnd();" <<
-          endl;
-          */
-        if (style == "Cob" && !gen_no_client_completion_) {
-          out <<
-            indent(1) << "completed = true;" << endl <<
-            indent(1) << "completed__(false);" << endl;
-        }
-        //out <<
-        //  indent() << "}" << endl;
-
-        std::string cob_fail("cob(ret);");
-        std::string cob_succ("cob(pebble::rpc::ErrorInfo::kRpcNoRrror);");
-        std::string cob_recvfail("cob(pebble::rpc::ErrorInfo::kRecvFailed);");
-        if (!(*f_iter)->get_returntype()->is_void()) {
-          t_field returnfield((*f_iter)->get_returntype(), "_return");
-          out <<
-            indent() << declare_field(&returnfield, true) << endl;
-          cob_fail = "cob(ret, _return);";
-          cob_succ = "cob(pebble::rpc::ErrorInfo::kRpcNoRrror, _return);";
-          cob_recvfail = "cob(pebble::rpc::ErrorInfo::kRecvFailed, _return);";
-        }
-
-        out << indent() << "if (ret != 0) {" << endl
-            << indent() << indent() << cob_fail << endl
-            << indent() << indent() << "return;" << endl
-            << indent() << "}" << endl;
-
-        out << indent() << "if (!prot) {" << endl;
-        out << indent(1) << "throw ::pebble::rpc::TApplicationException(::pebble::rpc::TApplicationException::INTERNAL_ERROR, \"protocol is null\");" << endl;
-        out << indent() << "}" << endl;
-
-        out <<
-          indent() << resultname << " result;" << endl;
-
-        if (!(*f_iter)->get_returntype()->is_void()) {
-          out <<
-            indent() << "result.success = &_return;" << endl;
-        }
-
-        out <<
-          indent() << "try {" << endl <<
-          indent(1) << "result.read(" << _this << "prot);" << endl <<
-          indent(1) << _this << "prot->readMessageEnd();" << endl <<
-          indent(1) << _this << "prot->getTransport()->readEnd();" << endl <<
-          indent() << "} catch (pebble::rpc::TException ex) {" << endl <<
-          indent(1) << cob_recvfail << endl <<
-          indent(1) << "return;" << endl <<
-          indent() << "}" << endl <<
-          endl;
-
-        // Careful, only look for _result if not a void function
-        if (!(*f_iter)->get_returntype()->is_void()) {
-          if (is_complex_type((*f_iter)->get_returntype())) {
-            out <<
-              indent() << "if (result.__isset.success) {" << endl <<
-              indent(1) << "// _return pointer has now been filled" << endl;
-            if (style == "Cob" && !gen_no_client_completion_) {
-              out <<
-                indent(1) << "completed = true;" << endl <<
-                indent(1) << "completed__(true);" << endl;
-            }
-            out <<
-              indent(1) << cob_succ << endl <<
-              indent(1) << "return;" << endl <<
-              indent() << "}" << endl;
-          } else {
-            out <<
-              indent() << "if (result.__isset.success) {" << endl;
-            if (style == "Cob" && !gen_no_client_completion_) {
-              out <<
-                indent(1) << "completed = true;" << endl <<
-                indent(1) << "completed__(true);" << endl;
-            }
-            out <<
-              indent(1) << cob_succ << endl <<
-              indent(1) << "return;" << endl <<
-              indent() << "}" << endl;
-          }
-        } else {
-          out << indent() << "cob(0);" << endl;
-        }
-
-        //t_struct* xs = (*f_iter)->get_xceptions();
-        //const std::vector<t_field*>& xceptions = xs->get_members();
-        //vector<t_field*>::const_iterator x_iter;
-        for (x_iter = xceptions.begin(); x_iter != xceptions.end(); ++x_iter) {
-          out <<
-            indent() << "if (result.__isset." << (*x_iter)->get_name() << ") {" << endl;
-          if (style == "Cob" && !gen_no_client_completion_) {
-            out <<
-              indent(1) << "completed = true;" << endl <<
-              indent(1) << "completed__(true);" << endl;
-          }
-          out  <<
-            indent(1) << "throw result." << (*x_iter)->get_name() << ";" << endl <<
-            indent() << "}" << endl;
-        }
-
-        // We only get here if we are a void function
-        if ((*f_iter)->get_returntype()->is_void()) {
-          if (style == "Cob" && !gen_no_client_completion_) {
-            out <<
-              indent() << "completed = true;" << endl <<
-              indent() << "completed__(true);" << endl;
-          }
-          indent(out) <<
-            "return;" << endl;
-        } else {
-          if (style == "Cob" && !gen_no_client_completion_) {
-            out <<
-              indent() << "completed = true;" << endl <<
-              indent() << "completed__(true);" << endl;
-          }
-          out << indent() << "cob((pebble::rpc::ErrorInfo::kMissingResult), _return);" << endl;
-          out <<
-            indent() << "throw ::pebble::rpc::TApplicationException(::pebble::rpc::TApplicationException::MISSING_RESULT, \"" << (*f_iter)->get_name() << " failed: unknown result\");" << endl;
-        }
-        if (style == "Cob" && !gen_no_client_completion_) {
-          indent_down();
-          out <<
-            indent() << "} catch (...) {" << endl <<
-            indent(1) << "if (!completed) {" << endl <<
-            indent(2) << "completed__(false);" << endl <<
-            indent(1) << "}" << endl <<
-            indent(1) << "throw;" << endl <<
-            indent() << "}" << endl;
-        }
-        // Close function
-        scope_down(out);
-        out << endl;
-      }
     }
+
   }
 }
 
@@ -3732,21 +2789,14 @@ class ProcessorGenerator4Client {
 
     generate_construct_function();
 
-    // Generate the dispatchCall() function
-    generate_dispatch_call(false);
-    if (generator_->gen_templates_) {
-      generate_dispatch_call(true);
-    }
+    generate_register_service_function();
 
-    // Generate all of the process subfunctions
     generate_process_functions();
-
-    //generate_factory();
   }
 
   void generate_class_definition();
   void generate_construct_function();
-  void generate_dispatch_call(bool template_protocol);
+  void generate_register_service_function();
   void generate_process_functions();
   void generate_factory();
 
@@ -3771,7 +2821,7 @@ class ProcessorGenerator4Client {
 
   t_cpp_client_generator* generator_;
   t_service* service_;
-  std::ofstream& f_header_;
+  std::ofstream& f_service_h_;
   std::ofstream& f_out_;
   string service_name_;
   string style_;
@@ -3798,14 +2848,13 @@ ProcessorGenerator4Client::ProcessorGenerator4Client(t_cpp_client_generator* gen
                                        const string& style)
   : generator_(generator),
     service_(service),
-    f_header_(generator->f_header_),
-    f_out_(generator->gen_templates_ ?
-           generator->f_service_tcc_ : generator->f_service_),
+    f_service_h_(generator->f_service_h_),
+    f_out_(generator->f_service_cpp_),
     service_name_(generator->service_name_),
     style_(style) {
   if (style_ == "Cob") {
     pstyle_ = "Async";
-    class_name_ = service_name_ + pstyle_ + "Processor";
+    class_name_ = service_name_ + "Handler";
     if_name_ = service_name_ + "CobSvIf";
 
     finish_cob_ = "cxx::function<void(bool ok)> cob, ";
@@ -3834,7 +2883,7 @@ ProcessorGenerator4Client::ProcessorGenerator4Client(t_cpp_client_generator* gen
   }
 
   if (service_->get_extends() != NULL) {
-    extends_ = type_name(service_->get_extends()) + pstyle_ + "Processor";
+    extends_ = type_name(service_->get_extends()) + "Handler";
     if (generator_->gen_templates_) {
       // TODO(simpkins): If gen_templates_ is enabled, we currently assume all
       // parent services were also generated with templates enabled.
@@ -3844,7 +2893,6 @@ ProcessorGenerator4Client::ProcessorGenerator4Client(t_cpp_client_generator* gen
 }
 
 void ProcessorGenerator4Client::generate_class_definition() {
-  // Generate the dispatch methods
   vector<t_function*> functions = service_->get_functions();
   vector<t_function*>::iterator f_iter;
 
@@ -3852,20 +2900,12 @@ void ProcessorGenerator4Client::generate_class_definition() {
   if (service_->get_extends() != NULL) {
     parent_class = extends_;
   } else {
-    if (style_ == "Cob") {
-      parent_class = "::pebble::rpc::processor::TAsyncDispatchProcessor";
-    } else {
-      parent_class = "::pebble::rpc::processor::TDispatchProcessor";
-    }
-
-    if (generator_->gen_templates_) {
-      parent_class += "T<Protocol_>";
-    }
+      parent_class = "::pebble::IPebbleRpcService";
   }
 
   // Generate the header portion
   // generate processor definition to types file
-  std::ofstream& out = generator_->f_types_;
+  std::ofstream& out = generator_->f_service_inh_;
 
   // extern interface class
   out << "class " << if_name_ << ";" << endl;
@@ -3874,172 +2914,63 @@ void ProcessorGenerator4Client::generate_class_definition() {
     template_header_ <<
     "class " << class_name_ << " : public " << parent_class << " {" << endl;
 
-  // Protected data members
-  out <<
-    "protected:" << endl;
-  indent_up();
-  out <<
-    indent() << "cxx::shared_ptr<" << if_name_ << "> iface_;" << endl;
-  out <<
-    indent() << "virtual " << ret_type_ << "dispatchCall(" << finish_cob_ <<
-      "::pebble::rpc::protocol::TProtocol* iprot, " <<
-      "::pebble::rpc::protocol::TProtocol* oprot, " <<
-      "const std::string& fname, int64_t seqid" << call_context_ << ");" <<
+  // private data members
+  if (service_->get_extends() == NULL) {
+    out << "protected:" << endl << indent(1) <<
+      "pebble::PebbleRpc* m_server;" << endl <<
       endl;
-  if (generator_->gen_templates_) {
-    out <<
-      indent() << "virtual " << ret_type_ << "dispatchCallTemplated(" <<
-        finish_cob_ << "Protocol_* iprot, Protocol_* oprot, " <<
-        "const std::string& fname, int64_t seqid" << call_context_ << ");" <<
-        endl;
   }
-  indent_down();
+  out <<
+    "private:" << endl << indent(1) <<
+    if_name_ << "* m_iface;" << endl <<
+    endl;
 
   // Process function declarations
-  out << endl <<
+  out <<
     "private:" << endl;
   indent_up();
 
-  // Declare processMap_
-  out <<
-    indent() << "typedef  void (" << class_name_ << "::*" <<
-      "ProcessFunction)(" << finish_cob_decl_ << "int64_t, " <<
-      "::pebble::rpc::protocol::TProtocol*, " <<
-      "::pebble::rpc::protocol::TProtocol*" << call_context_decl_ << ");" <<
-      endl;
-  if (generator_->gen_templates_) {
-    out <<
-      indent() << "typedef void (" << class_name_ << "::*" <<
-        "SpecializedProcessFunction)(" << finish_cob_decl_ << "int64_t, " <<
-        "Protocol_*, Protocol_*" << call_context_decl_ << ");" <<
-        endl <<
-      indent() << "struct ProcessFunctions {" << endl <<
-      indent(1) << "ProcessFunction generic;" << endl <<
-      indent(1) << "SpecializedProcessFunction specialized;" << endl <<
-      indent(1) << "ProcessFunctions(ProcessFunction g, " <<
-        "SpecializedProcessFunction s) :" << endl <<
-      indent(2) << "generic(g)," << endl <<
-      indent(2) << "specialized(s) {}" << endl <<
-      indent(1) << "ProcessFunctions() : generic(NULL), specialized(NULL) " <<
-        "{}" << endl <<
-      indent() << "};" << endl <<
-      indent() << "typedef std::map<std::string, ProcessFunctions> " <<
-        "ProcessMap;" << endl;
-  } else {
-    out <<
-      indent() << "typedef std::map<std::string, ProcessFunction> " <<
-        "ProcessMap;" << endl;
-  }
-  out <<
-    indent() << "ProcessMap processMap_;" << endl;
-
   for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
     indent(out) <<
-      "void process_" << (*f_iter)->get_name() << "(" << finish_cob_ << "int64_t seqid, ::pebble::rpc::protocol::TProtocol* iprot, ::pebble::rpc::protocol::TProtocol* oprot" << call_context_ << ");" << endl;
-    if (generator_->gen_templates_) {
-      indent(out) <<
-        "void process_" << (*f_iter)->get_name() << "(" << finish_cob_ <<
-        "int64_t seqid, Protocol_* iprot, Protocol_* oprot" <<
-        call_context_ << ");" << endl;
-    }
-    if (style_ == "Cob") {
-      // XXX Factor this out, even if it is a pain.
-      string ret_arg = ((*f_iter)->get_returntype()->is_void()
-                        ? ""
-                        : ", const " + type_name((*f_iter)->get_returntype()) + "& _return");
-      out <<
-        indent() << "void return_" << (*f_iter)->get_name() <<
-        "(cxx::function<void(bool ok)> cob, int64_t seqid, " <<
-        "::pebble::rpc::protocol::TProtocol* oprot, " <<
-        "void* ctx" << ret_arg << ");" << endl;
-      if (generator_->gen_templates_) {
-        out <<
-          indent() << "void return_" << (*f_iter)->get_name() <<
-          "(cxx::function<void(bool ok)> cob, int64_t seqid, " <<
-          "Protocol_* oprot, void* ctx" << ret_arg << ");" << endl;
+      "int32_t process_" << (*f_iter)->get_name() <<
+      "(const uint8_t* buff, uint32_t buff_len, " << endl << indent(1) <<
+      "cxx::function<int32_t(int32_t ret, const uint8_t* buff, uint32_t buff_len)>& rsp);" << endl;
+
+    if (!(*f_iter)->is_oneway()) {
+      string ret_arg = ", int32_t ret_code";
+      if (!(*f_iter)->get_returntype()->is_void()) {
+        std::string type_const = ", ";
+        std::string type_ref;
+        if (generator_->is_complex_type((*f_iter)->get_returntype())) {
+          type_const = ", const ";
+          type_ref   = "&";
+        }
+        ret_arg += type_const + type_name((*f_iter)->get_returntype()) + type_ref + " response";
       }
-      // XXX Don't declare throw if it doesn't exist
-      out <<
-        indent() << "void throw_" << (*f_iter)->get_name() <<
-        "(cxx::function<void(bool ok)> cob, int64_t seqid, " <<
-        "::pebble::rpc::protocol::TProtocol* oprot, void* ctx, " <<
-        "::pebble::rpc::TDelayedException* _throw);" << endl;
-      if (generator_->gen_templates_) {
-        out <<
-          indent() << "void throw_" << (*f_iter)->get_name() <<
-          "(cxx::function<void(bool ok)> cob, int64_t seqid, " <<
-          "Protocol_* oprot, void* ctx, " <<
-          "::pebble::rpc::TDelayedException* _throw);" << endl;
-      }
+      indent(out) << "void return_" << (*f_iter)->get_name() <<
+        "(cxx::function<int32_t(int32_t ret, const uint8_t* buff, uint32_t buff_len)>& rsp" << endl << indent(1) <<
+        ret_arg << ");" << endl;
     }
   }
 
   out << endl <<
     "public:" << endl <<
-    indent() << "explicit " << class_name_ <<
-    "(cxx::shared_ptr<" << if_name_ << "> iface);" << endl;
-  /*
-    ":" << endl;
-  if (!extends_.empty()) {
-    out <<
-      indent() << "  " << extends_ << "(iface)," << endl;
-  }
-  out <<
-    indent() << "  iface_(iface) {" << endl;
-  indent_up();
+    indent() << class_name_ <<
+    "(pebble::PebbleRpc* rpc, " << if_name_ << "* iface);" << endl;
 
-  for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
-    out <<
-      indent() << "processMap_[\"" << (*f_iter)->get_name() << "\"] = ";
-    if (generator_->gen_templates_) {
-      out << "ProcessFunctions(" << endl;
-      if (generator_->gen_templates_only_) {
-        indent(out) << "  NULL," << endl;
-      } else {
-        indent(out) << "  &" << class_name_ << "::process_" <<
-          (*f_iter)->get_name() << "," << endl;
-      }
-      indent(out) << "  &" << class_name_ << "::process_" <<
-        (*f_iter)->get_name() << ")";
-    } else {
-      out << "&" << class_name_ << "::process_" << (*f_iter)->get_name();
-    }
-    out <<
-      ";" << endl;
-  }
-
-  indent_down();
   out <<
-    indent() << "}" << endl <<
-  */
-  out <<
-    endl <<
     indent() << "virtual ~" << class_name_ << "() {}" << endl;
-  string father_names;
-  if (!extends_.empty()) {
-    father_names = string(" + ") + string("std::string(\";\")") + string(" + ") + extends_ + string("::getServiceName()");
-  }
-  out << indent() << "std::string getServiceName() { return \"" << service_name_ << "\"" <<
-    father_names << "; }" << endl;
+
+  out <<
+    indent() << "virtual int32_t RegisterServiceFunction();" << endl;
+
+  out <<
+    indent() << "virtual std::string Name() { return \"" << service_name_ << "\"; }" <<  endl;
+
   indent_down();
+
   out <<
     "};" << endl << endl;
-
-  if (generator_->gen_templates_) {
-    // Generate a backwards compatible typedef, for callers who don't know
-    // about the new template-style code.
-    //
-    // We can't use TProtocol as the template parameter, since ProcessorT
-    // provides overloaded versions of most methods, one of which accepts
-    // TProtocol pointers, and one which accepts Protocol_ pointers.  This
-    // results in a compile error if instantiated with Protocol_ == TProtocol.
-    // Therefore, we define TDummyProtocol solely so we can use it as the
-    // template parameter here.
-    out <<
-      "typedef " << class_name_ <<
-      "< ::pebble::rpc::protocol::TDummyProtocol > " <<
-      service_name_ << pstyle_ << "Processor;" << endl << endl;
-  }
 }
 
 void ProcessorGenerator4Client::generate_construct_function() {
@@ -4048,137 +2979,81 @@ void ProcessorGenerator4Client::generate_construct_function() {
 
   f_out_ <<
     class_name_ << "::" << class_name_ <<
-    "(cxx::shared_ptr<" << if_name_ << "> iface) :" << endl;
+    "(pebble::PebbleRpc* rpc, " << if_name_ << "* iface) ";
   if (!extends_.empty()) {
-    f_out_ <<
-      indent(1) << extends_ << "(iface)," << endl;
+    f_out_ << endl <<
+      indent(1) << ":" << extends_ << "(rpc, iface) {" << endl << indent(1) <<
+      "m_iface = iface;" << endl;
+  } else {
+    f_out_ << "{" << endl << indent(1) << "m_server = rpc;" << endl <<
+        indent(1) << "m_iface = iface;" << endl;
   }
+
   f_out_ <<
-    indent(1) << "iface_(iface) {" << endl;
+    indent() << "}" << endl << endl;
+}
+
+void ProcessorGenerator4Client::generate_register_service_function() {
+  vector<t_function*> functions = service_->get_functions();
+  vector<t_function*>::iterator f_iter;
+
+  f_out_ <<
+    "int32_t " << class_name_ << "::RegisterServiceFunction() {" <<
+    endl;
   indent_up();
+
+  f_out_ << indent() <<
+    "if (!m_server) {" << endl << indent(1) <<
+    "return pebble::kRPC_INVALID_PARAM;" << endl << indent() <<
+    "}" << endl <<
+    endl;
+
+  f_out_ << indent() <<
+    "pebble::OnRpcRequest cb;" << endl << indent() <<
+    "int32_t ret = 0;" << endl <<
+    endl;
 
   for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
     f_out_ <<
-      indent() << "processMap_[\"" << (*f_iter)->get_name() << "\"] = ";
-    if (generator_->gen_templates_) {
-      f_out_ << "ProcessFunctions(" << endl;
-      if (generator_->gen_templates_only_) {
-        indent(f_out_) << indent() << "NULL," << endl;
-      } else {
-        indent(f_out_) << indent() << "&" << class_name_ << "::process_" <<
-          (*f_iter)->get_name() << "," << endl;
-      }
-      indent(f_out_) << indent() << "&" << class_name_ << "::process_" <<
-        (*f_iter)->get_name() << ")";
-    } else {
-      f_out_ << "&" << class_name_ << "::process_" << (*f_iter)->get_name();
-    }
+      indent() << "cb = cxx::bind(&" << class_name_ <<
+      "::process_" << (*f_iter)->get_name() << ", this, " << endl << indent(1) <<
+      "cxx::placeholders::_1, cxx::placeholders::_2, cxx::placeholders::_3);" << endl;
+
     f_out_ <<
-      ";" << endl;
+      indent() << "ret = m_server->AddOnRequestFunction(\"" << service_name_ <<
+      ":" << (*f_iter)->get_name() << "\", cb);" << endl;
+
+    f_out_ <<
+      indent() << "if (ret != pebble::kRPC_SUCCESS) {" << endl <<
+      indent(1) << "return ret;" << endl <<
+      indent() << "}" << endl <<
+      endl;
   }
+
+  if (!extends_.empty()) {
+    f_out_ <<
+      indent() << "ret = " << extends_ << "::RegisterServiceFunction();" << endl <<
+      indent() << "if (ret != pebble::kRPC_SUCCESS && ret != pebble::kRPC_FUNCTION_NAME_EXISTED) {" << endl <<
+      indent(1) << "return ret;" << endl <<
+      indent() << "}" << endl <<
+      endl;
+  }
+  f_out_ <<
+    indent() << "return pebble::kRPC_SUCCESS;" << endl;
 
   indent_down();
   f_out_ <<
     indent() << "}" << endl << endl;
-
-}
-
-void ProcessorGenerator4Client::generate_dispatch_call(bool template_protocol) {
-  string protocol = "::pebble::rpc::protocol::TProtocol";
-  string function_suffix;
-  if (template_protocol) {
-    protocol = "Protocol_";
-    // We call the generic version dispatchCall(), and the specialized
-    // version dispatchCallTemplated().  We can't call them both
-    // dispatchCall(), since this will cause the compiler to issue a warning if
-    // a service that doesn't use templates inherits from a service that does
-    // use templates: the compiler complains that the subclass only implements
-    // the generic version of dispatchCall(), and hides the templated version.
-    // Using different names for the two functions prevents this.
-    function_suffix = "Templated";
-  }
-
-  f_out_ <<
-    template_header_ <<
-    ret_type_ << class_name_ <<
-    template_suffix_ << "::dispatchCall" << function_suffix << "(" <<
-    finish_cob_ << protocol << "* iprot, " << protocol << "* oprot, " <<
-    "const std::string& fname, int64_t seqid" << call_context_ << ") {" <<
-    endl;
-  indent_up();
-
-  // HOT: member function pointer map
-  f_out_ <<
-    indent() << typename_str_ << "ProcessMap::iterator pfn;" << endl <<
-    indent() << "pfn = processMap_.find(fname);" << endl <<
-    indent() << "if (pfn == processMap_.end()) {" << endl;
-  if (extends_.empty()) {
-    f_out_ <<
-      indent(1) << "iprot->skip(::pebble::rpc::protocol::T_STRUCT);" << endl <<
-      indent(1) << "iprot->readMessageEnd();" << endl <<
-      indent(1) << "iprot->getTransport()->readEnd();" << endl <<
-      //indent() << "  ::pebble::rpc::TApplicationException x(::pebble::rpc::TApplicationException::UNKNOWN_METHOD, \"Invalid method name: '\"+fname+\"'\");" << endl <<
-      //indent() << "  oprot->writeMessageBegin(fname, ::pebble::rpc::protocol::T_EXCEPTION, seqid);" << endl <<
-      //indent() << "  x.write(oprot);" << endl <<
-      //indent() << "  oprot->writeMessageEnd();" << endl <<
-      //indent() << "  oprot->getTransport()->writeEnd();" << endl <<
-      //indent() << "  oprot->getTransport()->flush();" << endl <<
-      indent(1) << "throw ::pebble::rpc::TApplicationException(::pebble::rpc::TApplicationException::UNKNOWN_METHOD, \"Invalid method name: '\"+fname+\"'\");" << endl;
-      //indent(1) << (style_ == "Cob" ? "return cob(true);" : "return true;") << endl;
-  } else {
-    f_out_ <<
-      indent(1) << "return "
-               << extends_ << "::dispatchCall("
-               << (style_ == "Cob" ? "cob, " : "")
-               << "iprot, oprot, fname, seqid" << call_context_arg_ << ");" << endl;
-  }
-  f_out_ <<
-    indent() << "}" << endl;
-  if (template_protocol) {
-    f_out_ <<
-      indent() << "(this->*(pfn->second.specialized))";
-  } else {
-    if (generator_->gen_templates_only_) {
-      // TODO: This is a null pointer, so nothing good will come from calling
-      // it.  Throw an exception instead.
-      f_out_ <<
-        indent() << "(this->*(pfn->second.generic))";
-    } else if (generator_->gen_templates_) {
-      f_out_ <<
-        indent() << "(this->*(pfn->second.generic))";
-    } else {
-      f_out_ <<
-        indent() << "(this->*(pfn->second))";
-    }
-  }
-  f_out_ << "(" << cob_arg_ << "seqid, iprot, oprot" <<
-    call_context_arg_ << ");" << endl;
-
-  // TODO(dreiss): return pfn ret?
-  if (style_ == "Cob") {
-    f_out_ <<
-      indent() << "return;" << endl;
-  } else {
-    f_out_ <<
-      indent() << "return true;" << endl;
-  }
-
-  indent_down();
-  f_out_ <<
-    "}" << endl <<
-    endl;
 }
 
 void ProcessorGenerator4Client::generate_process_functions() {
   vector<t_function*> functions = service_->get_functions();
   vector<t_function*>::iterator f_iter;
   for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
-    if (generator_->gen_templates_) {
       generator_->generate_process_function(service_, *f_iter, style_, false);
-      generator_->generate_process_function(service_, *f_iter, style_, true);
-    } else {
-      generator_->generate_process_function(service_, *f_iter, style_, false);
-    }
+      if (!(*f_iter)->is_oneway()) {
+        generator_->generate_return_function(service_, *f_iter, style_, false);
+      }
   }
 }
 
@@ -4186,7 +3061,7 @@ void ProcessorGenerator4Client::generate_factory() {
   string if_factory_name = if_name_ + "Factory";
 
   // Generate the factory class definition
-  f_header_ <<
+  f_service_h_ <<
     template_header_ <<
     "class " << factory_class_name_ <<
       " : public ::pebble::rpc::processor::" <<
@@ -4195,7 +3070,7 @@ void ProcessorGenerator4Client::generate_factory() {
     "public:" << endl;
   indent_up();
 
-  f_header_ <<
+  f_service_h_ <<
     indent() << factory_class_name_ << "(const ::cxx::shared_ptr< " <<
       if_factory_name << " >& handlerFactory) :" << endl <<
     indent(2) << "handlerFactory_(handlerFactory) {}" << endl <<
@@ -4205,22 +3080,22 @@ void ProcessorGenerator4Client::generate_factory() {
       "getProcessor(const ::pebble::rpc::processor::TConnectionInfo& connInfo);" <<
       endl;
 
-  f_header_ <<
+  f_service_h_ <<
     endl <<
     "protected:" << endl <<
     indent() << "::cxx::shared_ptr< " << if_factory_name <<
       " > handlerFactory_;" << endl;
 
   indent_down();
-  f_header_ <<
+  f_service_h_ <<
     "};" << endl << endl;
 
   // If we are generating templates, output a typedef for the plain
   // factory name.
   if (generator_->gen_templates_) {
-    f_header_ <<
+    f_service_h_ <<
       "typedef " << factory_class_name_ <<
-      "< ::pebble::rpc::protocol::TDummyProtocol > " <<
+      "< ::pebble::dr::protocol::TDummyProtocol > " <<
       service_name_ << pstyle_ << "ProcessorFactory;" << endl << endl;
   }
 
@@ -4271,7 +3146,8 @@ void t_cpp_client_generator::generate_function_helpers(t_service* tservice,
     return;
   }
 
-  std::ofstream& out = (gen_templates_ ? f_service_tcc_ : f_service_);
+  // std::ofstream& out = (gen_templates_ ? f_service_tcc_ : f_service_cpp_);
+  std::ofstream& out = f_service_cpp_;
 
   t_struct result(program_, tservice->get_name() + "_" + tfunction->get_name() + "_result");
   t_field success(tfunction->get_returntype(), "success", 0);
@@ -4286,14 +3162,14 @@ void t_cpp_client_generator::generate_function_helpers(t_service* tservice,
     result.append(*f_iter);
   }
 
-  generate_struct_declaration(f_types_, &result, false);
-  generate_struct_definition(out, f_service_, &result, false);
+  generate_struct_declaration(f_service_inh_, &result, false);
+  generate_struct_definition(out, out, &result, false);
   generate_struct_reader(out, &result);
   generate_struct_result_writer(out, &result);
 
   result.set_name(tservice->get_name() + "_" + tfunction->get_name() + "_presult");
-  generate_struct_declaration(f_types_, &result, false, true, true, gen_cob_style_);
-  generate_struct_definition(out, f_service_, &result, false);
+  generate_struct_declaration(f_service_inh_, &result, false, true, true, gen_cob_style_);
+  generate_struct_definition(out, out, &result, false);
   generate_struct_reader(out, &result, true);
   if (gen_cob_style_) {
     generate_struct_writer(out, &result, true);
@@ -4314,584 +3190,173 @@ void t_cpp_client_generator::generate_process_function(t_service* tservice,
   const std::vector<t_field*>& fields = arg_struct->get_members();
   vector<t_field*>::const_iterator f_iter;
 
-  t_struct* xs = tfunction->get_xceptions();
-  const std::vector<t_field*>& xceptions = xs->get_members();
-  vector<t_field*>::const_iterator x_iter;
   string service_func_name = "\"" + tservice->get_name() + "." +
     tfunction->get_name() + "\"";
 
-  std::ofstream& out = (gen_templates_ ? f_service_tcc_ : f_service_);
+  std::ofstream& out = f_service_cpp_;
 
-  string prot_type =
-    (specialized ? "Protocol_" : "::pebble::rpc::protocol::TProtocol");
-  string class_suffix;
-  if (gen_templates_) {
-    class_suffix = "T<Protocol_>";
-  }
+  // Processor entry point.
+  // TODO(edhall) update for callContext when TEventServer is ready
 
-  // I tried to do this as one function.  I really did.  But it was too hard.
-  if (style != "Cob") {
-    // Open function
-    if (gen_templates_) {
-      out <<
-        indent() << "template <class Protocol_>" << endl;
-    }
-    const bool unnamed_oprot_seqid = tfunction->is_oneway() &&
-      !(gen_templates_ && !specialized);
-    out <<
-      "void " << tservice->get_name() << "Processor" << class_suffix << "::" <<
-      "process_" << tfunction->get_name() << "(" <<
-      "int32_t" << (unnamed_oprot_seqid ? ", " : " seqid, ") <<
-      prot_type << "* iprot, " <<
-      prot_type << "*" << (unnamed_oprot_seqid ? ", " : " oprot, ") <<
-      "void* callContext)" << endl;
-    scope_up(out);
+  out <<
+    "int32_t " << tservice->get_name() << "Handler" <<
+    "::process_" << tfunction->get_name() <<
+    "(" << endl << indent(1) <<
+    "const uint8_t* buff, uint32_t buff_len," << endl << indent(1) <<
+    "cxx::function<int32_t(int32_t ret, const uint8_t* buff, uint32_t buff_len)>& rsp)" <<
+    endl;
+  scope_up(out);
 
-    string argsname = tservice->get_name() + "_" + tfunction->get_name() +
-      "_args";
-    string resultname = tservice->get_name() + "_" + tfunction->get_name() +
-      "_result";
+  out << indent() <<
+    "::pebble::dr::protocol::TProtocol* decoder = m_server->GetCodec(pebble::PebbleRpc::kBORROW);" << endl << indent(1) <<
+    "if (!decoder) {" << endl << indent(1) <<
+    "rsp(pebble::kPEBBLE_RPC_UNKNOWN_CODEC_TYPE, NULL, 0);" << endl << indent(1) <<
+    "return pebble::kPEBBLE_RPC_UNKNOWN_CODEC_TYPE;" << endl << indent() <<
+    "}" << endl << endl << indent() <<
+    "static_cast<pebble::dr::transport::TMemoryBuffer*>(decoder->getTransport().get())->" << endl << indent(1) <<
+    "resetBuffer(const_cast<uint8_t*>(buff), buff_len, ::pebble::dr::transport::TMemoryBuffer::OBSERVE);" << endl <<
+    endl;
 
-    if (tfunction->is_oneway() && !unnamed_oprot_seqid) {
-      out <<
-        indent() << "(void) seqid;" << endl <<
-        indent() << "(void) oprot;" << endl;
-    }
+  out <<
+    indent() << tservice->get_name() + "_" + tfunction->get_name() << "_args args;" << endl << indent() <<
+      "try {" << endl << indent(1) <<
+      "args.read(decoder);" << endl << indent(1) <<
+      "decoder->readMessageEnd();" << endl << indent(1) <<
+      "decoder->getTransport()->readEnd();" << endl << indent() <<
+      "} catch (pebble::TException ex) {" << endl << indent(1) <<
+      "rsp(pebble::kPEBBLE_RPC_DECODE_BODY_FAILED, NULL, 0);" << endl << indent(1) <<
+      "return pebble::kPEBBLE_RPC_DECODE_BODY_FAILED;" << endl << indent() <<
+      "}" << endl << endl;
 
-    out <<
-      indent() << "void* ctx = NULL;" << endl <<
-      indent() << "if (this->eventHandler_.get() != NULL) {" << endl <<
-      indent(1) << "ctx = this->eventHandler_->getContext(" <<
-        service_func_name << ", callContext);" << endl <<
-      indent() << "}" << endl <<
-      indent() << "::pebble::rpc::processor::TProcessorContextFreer freer(" <<
-        "this->eventHandler_.get(), ctx, " << service_func_name << ");" <<
-        endl << endl <<
-      indent() << "if (this->eventHandler_.get() != NULL) {" << endl <<
-      indent(1) << "this->eventHandler_->preRead(ctx, " <<
-        service_func_name << ");" << endl <<
-      indent() << "}" << endl << endl <<
-      indent() << argsname << " args;" << endl <<
-      indent() << "args.read(iprot);" << endl <<
-      indent() << "iprot->readMessageEnd();" << endl <<
-      indent() << "uint32_t bytes = iprot->getTransport()->readEnd();" <<
-        endl << endl <<
-      indent() << "if (this->eventHandler_.get() != NULL) {" << endl <<
-      indent(1) << "this->eventHandler_->postRead(ctx, " <<
-        service_func_name << ", bytes);" << endl <<
-      indent() << "}" << endl <<
-      endl;
-
-    // Declare result
-    if (!tfunction->is_oneway()) {
-      out <<
-        indent() << resultname << " result;" << endl;
-    }
-
-    // Try block for functions with exceptions
-    out <<
-      indent() << "try {" << endl;
-    indent_up();
-
-    // Generate the function call
-    bool first = true;
-    out << indent();
-    if (!tfunction->is_oneway() && !tfunction->get_returntype()->is_void()) {
+  std::string cb_func;
+  if (!tfunction->is_oneway()) {
+    if (!tfunction->get_returntype()->is_void()) {
+      std::string type_const;
+      std::string type_ref;
       if (is_complex_type(tfunction->get_returntype())) {
-        first = false;
-        out << "iface_->" << tfunction->get_name() << "(result.success";
-      } else {
-        out << "result.success = iface_->" << tfunction->get_name() << "(";
+        type_const = "const ";
+        type_ref   = "&";
       }
-    } else {
-      out <<
-        "iface_->" << tfunction->get_name() << "(";
-    }
-    for (f_iter = fields.begin(); f_iter != fields.end(); ++f_iter) {
-      if (first) {
-        first = false;
-      } else {
-        out << ", ";
-      }
-      out << "args." << (*f_iter)->get_name();
-    }
-    out << ");" << endl;
-
-    // Set isset on success field
-    if (!tfunction->is_oneway() && !tfunction->get_returntype()->is_void()) {
-      out <<
-        indent() << "result.__isset.success = true;" << endl;
-    }
-
-    indent_down();
-    out << indent() << "}";
-
-    if (!tfunction->is_oneway()) {
-      for (x_iter = xceptions.begin(); x_iter != xceptions.end(); ++x_iter) {
-        out << " catch (" << type_name((*x_iter)->get_type()) << " &" <<
-          (*x_iter)->get_name() << ") {" << endl;
-        if (!tfunction->is_oneway()) {
-          indent_up();
-          out <<
-            indent() << "result." << (*x_iter)->get_name() << " = " <<
-              (*x_iter)->get_name() << ";" << endl <<
-            indent() << "result.__isset." << (*x_iter)->get_name() <<
-              " = true;" << endl;
-          indent_down();
-          out << indent() << "}";
-        } else {
-          out << "}";
-        }
-      }
-    }
-
-    if (!tfunction->is_oneway()) {
-       out << " catch (const std::exception& e) {" << endl;
-    } else {
-       out << " catch (const std::exception&) {" << endl;
-    }
-
-    indent_up();
-    out <<
-      indent() << "if (this->eventHandler_.get() != NULL) {" << endl <<
-      indent(1) << "this->eventHandler_->handlerError(ctx, " <<
-        service_func_name << ");" << endl <<
-      indent() << "}" << endl;
-
-    if (!tfunction->is_oneway()) {
-      out <<
-        endl <<
-        indent() << "::pebble::rpc::TApplicationException x(e.what());" <<
-          endl <<
-        indent() << "oprot->writeMessageBegin(\"" <<
-          service_name_ << ":" << tfunction->get_name() <<
-          "\", ::pebble::rpc::protocol::T_EXCEPTION, seqid);" << endl <<
-        indent() << "x.write(oprot);" << endl <<
-        indent() << "oprot->writeMessageEnd();" << endl;
-      out << indent() << "oprot->getTransport()->setServiceName(\"" << service_name_ << "\");" << endl;
-      out <<
-        indent() << "oprot->getTransport()->writeEnd();" << endl <<
-        indent() << "oprot->getTransport()->flush();" << endl;
-    }
-    out << indent() << "return;" << endl;
-    indent_down();
-    out << indent() << "}" << endl << endl;
-
-    // Shortcut out here for oneway functions
-    if (tfunction->is_oneway()) {
-      out <<
-        indent() << "if (this->eventHandler_.get() != NULL) {" << endl <<
-        indent(1) << "this->eventHandler_->asyncComplete(ctx, " <<
-          service_func_name << ");" << endl <<
-        indent() << "}" << endl << endl <<
-        indent() << "return;" << endl;
-      indent_down();
-      out << "}" << endl <<
+      out << indent() <<
+        "cxx::function<void(int32_t ret_code, " << type_const << type_name(tfunction->get_returntype()) << type_ref << " response)> tmp =" << endl << indent(1) <<
+        "cxx::bind(&" << tservice->get_name() << "Handler::return_" << tfunction->get_name() << ", this," << endl << indent(2) <<
+        "rsp, cxx::placeholders::_1, cxx::placeholders::_2);" << endl <<
         endl;
-      return;
+    } else {
+      out << indent() <<
+        "cxx::function<void(int32_t ret_code)> tmp =" << endl << indent(1) <<
+        "cxx::bind(&" << tservice->get_name() << "Handler::return_" << tfunction->get_name() << ", this," << endl << indent(2) <<
+        "rsp, cxx::placeholders::_1);" << endl <<
+        endl;
     }
-
-    // Serialize the result into a struct
-    out <<
-      indent() << "if (this->eventHandler_.get() != NULL) {" << endl <<
-      indent(1) << "this->eventHandler_->preWrite(ctx, " <<
-        service_func_name << ");" << endl <<
-      indent() << "}" << endl << endl <<
-      indent() << "oprot->writeMessageBegin(\"" <<
-        service_name_ << ":" << tfunction->get_name() <<
-        "\", ::pebble::rpc::protocol::T_REPLY, seqid);" << endl <<
-      indent() << "result.write(oprot);" << endl <<
-      indent() << "oprot->writeMessageEnd();" << endl;
-    out << indent() << "oprot->getTransport()->setServiceName(\"" << service_name_ << "\");" << endl;
-    out <<
-      indent() << "bytes = oprot->getTransport()->writeEnd();" << endl <<
-      indent() << "oprot->getTransport()->flush();" << endl << endl <<
-      indent() << "if (this->eventHandler_.get() != NULL) {" << endl <<
-      indent(1) << "this->eventHandler_->postWrite(ctx, " <<
-        service_func_name << ", bytes);" << endl <<
-      indent() << "}" << endl;
-
-    // Close function
-    scope_down(out);
-    out << endl;
+    cb_func = "tmp";
   }
 
-  // Cob style.
-  else {
-    // Processor entry point.
-    // TODO(edhall) update for callContext when TEventServer is ready
-    if (gen_templates_) {
-      out <<
-        indent() << "template <class Protocol_>" << endl;
+  out << indent() << "m_iface->" << tfunction->get_name() << "(";
+
+  std::string para_sp;
+  for (f_iter = fields.begin(); f_iter != fields.end(); ++f_iter) {
+    if (f_iter != fields.begin()) {
+        out << ",";
     }
+    out << endl << indent(1) << "args." << (*f_iter)->get_name();
+    para_sp = ",";
+  }
+
+  if (!tfunction->is_oneway()) {
+    if (!para_sp.empty() && !cb_func.empty()) {
+      out << para_sp << endl << indent(1);
+    }
+    out << cb_func <<
+      endl;
+  }
+
+  out << indent() << ");" << endl << endl;
+
+  out << indent() << "return pebble::kRPC_SUCCESS;" << endl;
+
+  scope_down(out);
+  out << endl;
+}
+
+void t_cpp_client_generator::generate_return_function  (t_service* tservice, t_function* tfunction,
+                                   string style, bool specialized) {
+  string service_func_name = "\"" + tservice->get_name() + "." +
+    tfunction->get_name() + "\"";
+
+  std::ofstream& out = f_service_cpp_;
+
+  // Processor entry point.
+  // TODO(edhall) update for callContext when TEventServer is ready
+
+  std::string ret_value = ", int32_t ret_code";
+  if (!tfunction->get_returntype()->is_void()) {
+    std::string type_ref;
+    std::string type_const;
+    if (is_complex_type(tfunction->get_returntype())) {
+        type_ref   = "&";
+        type_const = "const ";
+    }
+    ret_value += ", " + type_const + type_name(tfunction->get_returntype()) + type_ref + " response";
+  }
+
+  out <<
+    "void " << tservice->get_name() << "Handler" <<
+    "::return_" << tfunction->get_name() << "(" << endl << indent(1) <<
+    "cxx::function<int32_t(int32_t ret, const uint8_t* buff, uint32_t buff_len)>& rsp" << endl << indent(1) <<
+    ret_value << ")" <<
+    endl;
+  scope_up(out);
+
+  #if 0
+  out << indent() <<
+    "if (ret_code != 0) {" << endl << indent(1) <<
+    "rsp(ret_code, NULL, 0);" << endl << indent(1) <<
+    "return;" << endl << indent() <<
+    "}" << endl <<
+    endl;
+  #endif
+
+  out << indent() <<
+    "::pebble::dr::protocol::TProtocol* encoder = m_server->GetCodec(pebble::PebbleRpc::kMALLOC);" << endl << indent(1) <<
+    "if (!encoder) {" << endl << indent(1) <<
+    "rsp(pebble::kPEBBLE_RPC_UNKNOWN_CODEC_TYPE, NULL, 0);" << endl << indent(1) <<
+    "return;" << endl << indent() <<
+    "}" << endl <<
+    endl;
+
+  out <<
+    indent() << tservice->get_name() + "_" + tfunction->get_name() << "_presult result;" << endl;
+
+  if (!tfunction->get_returntype()->is_void()) {
+    // The const_cast here is unfortunate, but it would be a pain to avoid,
+    // and we only do a write with this struct, which is const-safe.
     out <<
-      "void " << tservice->get_name() << "AsyncProcessor" << class_suffix <<
-      "::process_" << tfunction->get_name() <<
-      "(cxx::function<void(bool ok)> cob, int64_t seqid, " <<
-      prot_type << "* iprot, " << prot_type << "* oprot)" << endl;
-    scope_up(out);
-
-    // TODO(simpkins): we could try to consoldate this
-    // with the non-cob code above
-    if (gen_templates_ && !specialized) {
-      // If these are instances of Protocol_, instead of any old TProtocol,
-      // use the specialized process function instead.
-      out <<
-        indent() << "Protocol_* _iprot = dynamic_cast<Protocol_*>(iprot);" <<
+      indent() << "result.success = const_cast<" <<
+        type_name(tfunction->get_returntype()) << "*>(&response);" <<
         endl <<
-        indent() << "Protocol_* _oprot = dynamic_cast<Protocol_*>(oprot);" <<
-        endl <<
-        indent() << "if (_iprot && _oprot) {" << endl <<
-        indent(1) << "return process_" << tfunction->get_name() <<
-        "(cob, seqid, _iprot, _oprot);" << endl <<
-        indent() << "}" << endl <<
-        //indent() << "T_GENERIC_PROTOCOL(this, iprot, _iprot);" << endl <<
-        //indent() << "T_GENERIC_PROTOCOL(this, oprot, _oprot);" << endl <<
-        endl;
-    }
+      indent() << "result.__isset.success = true;" << endl;
+  }
 
-    if (tfunction->is_oneway()) {
-      out <<
-        indent() << "(void) seqid;" << endl <<
-        indent() << "(void) oprot;" << endl;
-    }
+  out << endl << indent() <<
+    "try {" << endl << indent(1) <<
+    "result.write(encoder);" << endl << indent(1) <<
+    "encoder->writeMessageEnd();" << endl << indent(1) <<
+    "encoder->getTransport()->writeEnd();" << endl << indent() <<
+    "} catch (pebble::TException ex) {" << endl << indent(1) <<
+    "rsp(pebble::kPEBBLE_RPC_ENCODE_BODY_FAILED, NULL, 0);" << endl << indent(1) <<
+    "return;" << endl << indent() <<
+    "}" << endl << endl;
 
-    out <<
-      indent() << tservice->get_name() + "_" + tfunction->get_name() <<
-        "_args args;" << endl <<
-      indent() << "void* ctx = NULL;" << endl <<
-      indent() << "if (this->eventHandler_.get() != NULL) {" << endl <<
-      indent(1) << "ctx = this->eventHandler_->getContext(" <<
-        service_func_name << ", NULL);" << endl <<
-      indent() << "}" << endl <<
-      indent() << "::pebble::rpc::processor::TProcessorContextFreer freer(" <<
-        "this->eventHandler_.get(), ctx, " << service_func_name << ");" <<
-        endl << endl
-      /* indent() << "try {" << endl;
-    indent_up() */;
-    out <<
-      indent() << "if (this->eventHandler_.get() != NULL) {" << endl <<
-      indent(1) << "this->eventHandler_->preRead(ctx, " <<
-        service_func_name << ");" << endl <<
-      indent() << "}" << endl <<
-      indent() << "args.read(iprot);" << endl <<
-      indent() << "iprot->readMessageEnd();" << endl <<
-      indent() << "uint32_t bytes = iprot->getTransport()->readEnd();" <<
-        endl <<
-      indent() << "if (this->eventHandler_.get() != NULL) {" << endl <<
-      indent(1) << "this->eventHandler_->postRead(ctx, " <<
-        service_func_name << ", bytes);" << endl <<
-      indent() << "}" << endl;
-    // scope_down(out);
+  out << indent() <<
+    "uint8_t* buff = NULL;" << endl << indent() <<
+    "uint32_t buff_len = 0;" << endl << indent() <<
+    "(static_cast<pebble::dr::transport::TMemoryBuffer*>(encoder->getTransport().get()))->" << endl << indent(1) <<
+    "getBuffer(&buff, &buff_len);" << endl << endl << indent() <<
+    "rsp(ret_code, buff, buff_len);" << endl;
 
-    // TODO(dreiss): Handle TExceptions?  Expose to server?
-    /*
-    out <<
-      indent() << "catch (const std::exception&) {" << endl <<
-      indent(1) << "if (this->eventHandler_.get() != NULL) {" << endl <<
-      indent(2) << "this->eventHandler_->handlerError(ctx, " <<
-        service_func_name << ");" << endl <<
-      indent(1) << "}" << endl <<
-      indent(1) << "return cob(false);" << endl <<
-      indent() << "}" << endl;
-      */
-
-    if (tfunction->is_oneway()) {
-      out <<
-        indent() << "if (this->eventHandler_.get() != NULL) {" << endl <<
-        indent(1) << "this->eventHandler_->asyncComplete(ctx, " <<
-          service_func_name << ");" << endl <<
-        indent() << "}" << endl;
-    }
-    // TODO(dreiss): Figure out a strategy for exceptions in async handlers.
-    out <<
-      indent() << "freer.unregister();" << endl;
-    if (tfunction->is_oneway()) {
-      // No return.  Just hand off our cob.
-      // TODO(dreiss): Call the cob immediately?
-      out << indent() << "cob(true);" << endl;
-      out <<
-        indent() << "iface_->" << tfunction->get_name() << "(" << endl;
-
-      // XXX Whitespace cleanup.
-      std::string para_sp;
-      for (f_iter = fields.begin(); f_iter != fields.end(); ++f_iter) {
-        if (f_iter != fields.begin()) { para_sp = ", "; }
-        else { para_sp = ""; }
-        out << indent() << para_sp << "args." << (*f_iter)->get_name() << endl;
-      }
-    } else {
-      string ret_arg, ret_placeholder;
-      if (!tfunction->get_returntype()->is_void()) {
-        ret_arg = ", const " + type_name(tfunction->get_returntype()) +
-          "& _return";
-        ret_placeholder = ", cxx::placeholders::_1";
-      }
-
-      // When gen_templates_ is true, the return_ and throw_ functions are
-      // overloaded.  We have to declare pointers to them so that the compiler
-      // can resolve the correct overloaded version.
-      if (!tfunction->get_returntype()->is_void()) {
-        out <<
-          indent() << "void (" << tservice->get_name() << "AsyncProcessor" <<
-          class_suffix << "::*return_fn)(cxx::function<void(bool ok)> " <<
-          "cob, int64_t seqid, " << prot_type << "* oprot, void* ctx" <<
-          ret_arg << ") =" << endl;
-        out <<
-          indent(1) << "&" << tservice->get_name() << "AsyncProcessor" <<
-          class_suffix << "::return_" << tfunction->get_name() << ";" << endl;
-      }
-      if (!xceptions.empty()) {
-        out <<
-          indent() << "void (" << tservice->get_name() << "AsyncProcessor" <<
-          class_suffix << "::*throw_fn)(cxx::function<void(bool ok)> " <<
-          "cob, int64_t seqid, " << prot_type << "* oprot, void* ctx, " <<
-          "::pebble::rpc::TDelayedException* _throw) =" << endl;
-        out <<
-          indent(1) << "&" << tservice->get_name() << "AsyncProcessor" <<
-          class_suffix << "::throw_" << tfunction->get_name() << ";" << endl;
-      }
-
-      if (tfunction->get_returntype()->is_void()) {
-        out << indent() << "return_" << tfunction->get_name() << "(cob, seqid, oprot, ctx);" << endl;
-      }
-
-      out <<
-        indent() << "iface_->" << tfunction->get_name() << "(" << endl;
-
-      // XXX Whitespace cleanup.
-      std::string para_sp;
-      for (f_iter = fields.begin(); f_iter != fields.end(); ++f_iter) {
-        if (f_iter != fields.begin()) { para_sp = ", "; }
-        else { para_sp = ""; }
-        out <<
-          indent() << para_sp << "args." << (*f_iter)->get_name() << endl;
-      }
-
-      if (fields.size() > 0) {
-         para_sp = ", ";
-      }
-
-      if (!tfunction->get_returntype()->is_void()) {
-        out << endl <<
-          indent() << para_sp << "cxx::bind(return_fn, this, cob, seqid, oprot, ctx" <<
-          ret_placeholder << ")";
-        para_sp = ", ";
-      }
-      if (!xceptions.empty()) {
-        out
-           << endl <<
-          indent() << para_sp << "cxx::bind(throw_fn, this, cob, seqid, oprot, " <<
-          "ctx, cxx::placeholders::_1)";
-      }
-    }
-
-
-    out << endl << indent() << ");" << endl;
-
-    if (tfunction->is_oneway()) {
-        // 对于http传输，oneway消息处理完后需要回一个空响应，以便释放连接
-        out << indent() << "uint8_t tmp[1] = {0};" << endl <<
-            indent() << "iprot->getTransport()->write(tmp, 0);" << endl <<
-            indent() << "iprot->getTransport()->writeEnd();" << endl <<
-            indent() << "iprot->getTransport()->flush();" << endl;
-    }
-
-    scope_down(out);
-    out << endl;
-
-    // Normal return.
-    if (!tfunction->is_oneway()) {
-      string ret_arg_decl, ret_arg_name;
-      if (!tfunction->get_returntype()->is_void()) {
-        ret_arg_decl = ", const " + type_name(tfunction->get_returntype()) +
-          "& _return";
-        ret_arg_name = ", _return";
-      }
-      if (gen_templates_) {
-        out <<
-          indent() << "template <class Protocol_>" << endl;
-      }
-      out <<
-        "void " << tservice->get_name() << "AsyncProcessor" << class_suffix <<
-        "::return_" << tfunction->get_name() <<
-        "(cxx::function<void(bool ok)> cob, int64_t seqid, " <<
-        prot_type << "* oprot, void* ctx" << ret_arg_decl << ')' << endl;
-      scope_up(out);
-
-      if (gen_templates_ && !specialized) {
-        // If oprot is a Protocol_ instance,
-        // use the specialized return function instead.
-        out <<
-          indent() << "Protocol_* _oprot = dynamic_cast<Protocol_*>(oprot);" <<
-          endl <<
-          indent() << "if (_oprot) {" << endl <<
-          indent(1) << "return return_" << tfunction->get_name() <<
-          "(cob, seqid, _oprot, ctx" << ret_arg_name << ");" << endl <<
-          indent() << "}" << endl <<
-          //indent() << "T_GENERIC_PROTOCOL(this, oprot, _oprot);" <<
-          endl << endl;
-      }
-
-      out <<
-        indent() << tservice->get_name() << "_" << tfunction->get_name() <<
-          "_presult result;" << endl;
-      if (!tfunction->get_returntype()->is_void()) {
-        // The const_cast here is unfortunate, but it would be a pain to avoid,
-        // and we only do a write with this struct, which is const-safe.
-        out <<
-          indent() << "result.success = const_cast<" <<
-            type_name(tfunction->get_returntype()) << "*>(&_return);" <<
-            endl <<
-          indent() << "result.__isset.success = true;" << endl;
-      }
-      // Serialize the result into a struct
-      out <<
-        endl <<
-        indent() << "if (this->eventHandler_.get() != NULL) {" << endl <<
-        indent(1) << "ctx = this->eventHandler_->getContext(" <<
-          service_func_name << ", NULL);" << endl <<
-        indent() << "}" << endl <<
-        indent() << "::pebble::rpc::processor::TProcessorContextFreer freer(" <<
-          "this->eventHandler_.get(), ctx, " << service_func_name <<
-          ");" << endl << endl <<
-        indent() << "if (this->eventHandler_.get() != NULL) {" << endl <<
-        indent(1) << "this->eventHandler_->preWrite(ctx, " <<
-          service_func_name << ");" << endl <<
-        indent() << "}" << endl << endl <<
-        indent() << "oprot->writeMessageBegin(\"" <<
-          service_name_ << ":" << tfunction->get_name() <<
-          "\", ::pebble::rpc::protocol::T_REPLY, seqid);" << endl <<
-        indent() << "result.write(oprot);" << endl <<
-        indent() << "oprot->writeMessageEnd();" << endl;
-      out << indent() << "oprot->getTransport()->setServiceName(\"" << service_name_ << "\");" << endl;
-      out <<
-        indent() << "uint32_t bytes = oprot->getTransport()->writeEnd();" <<
-          endl <<
-        indent() << "oprot->getTransport()->flush();" << endl <<
-        indent() << "if (this->eventHandler_.get() != NULL) {" << endl <<
-        indent(1) << "this->eventHandler_->postWrite(ctx, " <<
-          service_func_name << ", bytes);" << endl <<
-        indent() << "}" << endl <<
-        indent() << "return cob(true);" << endl;
-      scope_down(out);
-      out << endl;
-    }
-
-    // Exception return.
-    if (!tfunction->is_oneway() && !xceptions.empty()) {
-      if (gen_templates_) {
-        out <<
-          indent() << "template <class Protocol_>" << endl;
-      }
-      out <<
-        "void " << tservice->get_name() << "AsyncProcessor" << class_suffix <<
-        "::throw_" << tfunction->get_name() <<
-        "(cxx::function<void(bool ok)> cob, int64_t seqid, " <<
-        prot_type << "* oprot, void* ctx, " <<
-        "::pebble::rpc::TDelayedException* _throw)" << endl;
-      scope_up(out);
-
-      if (gen_templates_ && !specialized) {
-        // If oprot is a Protocol_ instance,
-        // use the specialized throw function instead.
-        out <<
-          indent() << "Protocol_* _oprot = dynamic_cast<Protocol_*>(oprot);" <<
-          endl <<
-          indent() << "if (_oprot) {" << endl <<
-          indent(1) << "return throw_" << tfunction->get_name() <<
-          "(cob, seqid, _oprot, ctx, _throw);" << endl <<
-          indent() << "}" << endl <<
-          //indent() << "T_GENERIC_PROTOCOL(this, oprot, _oprot);" <<
-          endl << endl;
-      }
-
-      // Get the event handler context
-      out <<
-        endl <<
-        indent() << "if (this->eventHandler_.get() != NULL) {" << endl <<
-        indent(1) << "ctx = this->eventHandler_->getContext(" <<
-          service_func_name << ", NULL);" << endl <<
-        indent() << "}" << endl <<
-        indent() << "::pebble::rpc::processor::TProcessorContextFreer freer(" <<
-          "this->eventHandler_.get(), ctx, " << service_func_name << ");" <<
-          endl << endl;
-
-      // Throw the TDelayedException, and catch the result
-      out <<
-        indent() << tservice->get_name() << "_" << tfunction->get_name() <<
-          "_result result;" << endl << endl <<
-        indent() << "try {" << endl;
-      indent_up();
-      out <<
-        indent() << "_throw->throw_it();" << endl <<
-        indent() << "return cob(false);" << endl;  // Is this possible?  TBD.
-      indent_down();
-      out <<
-        indent() << '}';
-      for (x_iter = xceptions.begin(); x_iter != xceptions.end(); ++x_iter) {
-        out << indent() << "catch (" << type_name((*x_iter)->get_type()) << " &" <<
-          (*x_iter)->get_name() << ") {" << endl;
-        indent_up();
-        out <<
-          indent() << "result." << (*x_iter)->get_name() << " = " <<
-            (*x_iter)->get_name() << ";" << endl <<
-          indent() << "result.__isset." << (*x_iter)->get_name() <<
-            " = true;" << endl;
-        scope_down(out);
-      }
-
-      // Handle the case where an undeclared exception is thrown
-      out << " catch (std::exception& e) {" << endl;
-      indent_up();
-      out <<
-        indent() << "if (this->eventHandler_.get() != NULL) {" << endl <<
-        indent(1) << "this->eventHandler_->handlerError(ctx, " <<
-          service_func_name << ");" << endl <<
-        indent() << "}" << endl <<
-        endl <<
-        indent() << "::pebble::rpc::TApplicationException x(e.what());" <<
-          endl <<
-        indent() << "oprot->writeMessageBegin(\"" <<
-          service_name_ << ":" << tfunction->get_name() <<
-          "\", ::pebble::rpc::protocol::T_EXCEPTION, seqid);" << endl <<
-        indent() << "x.write(oprot);" << endl <<
-        indent() << "oprot->writeMessageEnd();" << endl;
-      out << indent() << "oprot->getTransport()->setServiceName(\"" << service_name_ << "\");" << endl;
-      out <<
-        indent() << "oprot->getTransport()->writeEnd();" << endl <<
-        indent() << "oprot->getTransport()->flush();" << endl <<
-        // We pass true to the cob here, since we did successfully write a
-        // response, even though it is an exception response.
-        // It looks like the argument is currently ignored, anyway.
-        indent() << "return cob(true);" << endl;
-      scope_down(out);
-
-      // Serialize the result into a struct
-      out <<
-        indent() << "if (this->eventHandler_.get() != NULL) {" << endl <<
-        indent(1) << "this->eventHandler_->preWrite(ctx, " <<
-          service_func_name << ");" << endl <<
-        indent() << "}" << endl << endl <<
-        indent() << "oprot->writeMessageBegin(\"" <<
-          service_name_ << ":" << tfunction->get_name() <<
-          "\", ::pebble::rpc::protocol::T_REPLY, seqid);" << endl <<
-        indent() << "result.write(oprot);" << endl <<
-        indent() << "oprot->writeMessageEnd();" << endl;
-      out << indent() << "oprot->getTransport()->setServiceName(\"" << service_name_ << "\");" << endl;
-      out <<
-        indent() << "uint32_t bytes = oprot->getTransport()->writeEnd();" <<
-          endl <<
-        indent() << "oprot->getTransport()->flush();" << endl <<
-        indent() << "if (this->eventHandler_.get() != NULL) {" << endl <<
-        indent(1) << "this->eventHandler_->postWrite(ctx, " <<
-          service_func_name << ", bytes);" << endl <<
-        indent() << "}" << endl <<
-        indent() << "return cob(true);" << endl;
-      scope_down(out);
-      out << endl;
-    } // for each function
-  } // cob style
+  scope_down(out);
+  out << endl;
 }
 
 /**
@@ -4914,14 +3379,14 @@ void t_cpp_client_generator::generate_service_skeleton(t_service* tservice) {
     "// You should copy it to another filename to avoid overwriting it." << endl <<
     endl <<
     "#include \"" << get_include_prefix(*get_program()) << svcname << ".h\"" << endl <<
-    "#include <rpc/protocol/binary_protocol.h>" << endl <<
-    "#include <rpc/server/simple_server.h>" << endl <<
-    "#include <rpc/transport/server_socket.h>" << endl <<
-    "#include <rpc/transport/buffer_transport.h>" << endl <<
+    "#include <source/rpc/protocol/binary_protocol.h>" << endl <<
+    "#include <source/rpc/server/simple_server.h>" << endl <<
+    "#include <source/rpc/transport/server_socket.h>" << endl <<
+    "#include <source/rpc/transport/buffer_transport.h>" << endl <<
     endl <<
     "using namespace ::pebble::rpc;" << endl <<
-    "using namespace ::pebble::rpc::protocol;" << endl <<
-    "using namespace ::pebble::rpc::transport;" << endl <<
+    "using namespace ::pebble::dr::protocol;" << endl <<
+    "using namespace ::pebble::dr::transport;" << endl <<
     "using namespace ::pebble::rpc::server;" << endl <<
     endl <<
     "using cxx::shared_ptr;" << endl <<
@@ -5110,18 +3575,18 @@ void t_cpp_client_generator::generate_deserialize_container(ofstream& out,
   // Declare variables, read header
   if (ttype->is_map()) {
     out <<
-      indent() << "::pebble::rpc::protocol::TType " << ktype << ";" << endl <<
-      indent() << "::pebble::rpc::protocol::TType " << vtype << ";" << endl <<
+      indent() << "::pebble::dr::protocol::TType " << ktype << ";" << endl <<
+      indent() << "::pebble::dr::protocol::TType " << vtype << ";" << endl <<
       indent() << "xfer += " << iprot << "->readMapBegin(" <<
                    ktype << ", " << vtype << ", " << size << ");" << endl;
   } else if (ttype->is_set()) {
     out <<
-      indent() << "::pebble::rpc::protocol::TType " << etype << ";" << endl <<
+      indent() << "::pebble::dr::protocol::TType " << etype << ";" << endl <<
       indent() << "xfer += " << iprot << "->readSetBegin(" <<
                    etype << ", " << size << ");" << endl;
   } else if (ttype->is_list()) {
     out <<
-      indent() << "::pebble::rpc::protocol::TType " << etype << ";" << endl <<
+      indent() << "::pebble::dr::protocol::TType " << etype << ";" << endl <<
       indent() << "xfer += " << iprot << "->readListBegin(" <<
       etype << ", " << size << ");" << endl;
     if (!use_push) {
@@ -5680,6 +4145,7 @@ string t_cpp_client_generator::function_signature(t_function* tfunction,
                                            string prefix,
                                            bool name_params,
                                            std::string preargs) {
+  // TODO:
   t_type* ttype = tfunction->get_returntype();
   t_struct* arglist = tfunction->get_arglist();
   bool has_xceptions = !tfunction->get_xceptions()->get_members().empty();
@@ -5688,7 +4154,7 @@ string t_cpp_client_generator::function_signature(t_function* tfunction,
     if (is_complex_type(ttype)) {
       return
         "void " + prefix + tfunction->get_name() +
-        "(" + preargs + ", " + type_name(ttype) + (name_params ? "& _return" : "& /* _return */") +
+        "(" + preargs + ", " + type_name(ttype) + (name_params ? "& response" : "& /* response */") +
         argument_list(arglist, name_params, true) + ")";
     } else {
       std::string args = argument_list(arglist, name_params);
@@ -5718,13 +4184,13 @@ string t_cpp_client_generator::function_signature(t_function* tfunction,
         cob_type = "(int)";
       }
       //if (!ttype->is_void()) {
-      //  exn_cob = ", " + type_name(ttype) + (name_params ? "& _return" : "& /* _return */");
+      //  exn_cob = ", " + type_name(ttype) + (name_params ? "& response" : "& /* response */");
       //}
       if (!preargs.empty()) { preargs.append(", "); }
     } else if (style =="CobSv") {
       cob_type = (ttype->is_void()
                   ? "()"
-                  : ("(" + type_name(ttype) + " const& _return)"));
+                  : ("(" + type_name(ttype) + " const& response)"));
       if (has_xceptions) {
         exn_cob = ", cxx::function<void(::pebble::rpc::TDelayedException* _throw)> /* exn_cob */";
       }
@@ -5745,59 +4211,82 @@ std::string t_cpp_client_generator::function_signature_if(t_function* tfunction,
                                            string style,
                                            string prefix,
                                            bool name_params) {
-  t_type* ttype = tfunction->get_returntype();
+  t_type* ttype     = tfunction->get_returntype();
   t_struct* arglist = tfunction->get_arglist();
-  bool has_xceptions = !tfunction->get_xceptions()->get_members().empty();
 
-  std::string args = argument_list(arglist, name_params, false);
+  std::string args;
+  std::string ret_sync;
+  std::string ret_parallel;
+  std::string ret_async = "const cxx::function<void(int ret_code)>& cb";;
+  std::string ret_server;
 
-  std::string ret;
-  if (!ttype->is_void()) {
-    ret = type_name(ttype) + (name_params ? "& _return" : "& /* _return */");
+  std::string type_ref;
+  std::string type_const;
+
+  std::string ns = program_->get_namespace("cpp");
+  std::string ns_prefix("");
+  if (ttype->is_struct()) {
+      ns_prefix.append("::");
+      ns_prefix.append(ns);
+      ns_prefix.append("::");
   }
-
-  if (style == "") {
-    if (!args.empty() && !ret.empty()) {
-        args += ", ";
-    }
-    return "int " + prefix + tfunction->get_name() + "(" + args + ret + ")";
-  } else if (style.substr(0,3) == "Cob") {
-    string cob_type;
-    string exn_cob;
-    if (style == "CobCl") {
-      if (!ttype->is_void()) {
-        if (is_complex_type(ttype)) {
-          cob_type = "(int, " + type_name(ttype) + "&)";
-        } else {
-          cob_type = "(int, " + type_name(ttype) + ")";
-        }
-      } else {
-        cob_type = "(int)";
-      }
-    } else if (style =="CobSv") {
-      if (!ttype->is_void()) {
-        cob_type = "(" + type_name(ttype) + " const& _return)";
-      }
-      if (has_xceptions) {
-        exn_cob = ", cxx::function<void(::pebble::rpc::TDelayedException* _throw)> /* exn_cob */";
-      }
-      if (ttype->is_void()) {
-        return "void " + prefix + tfunction->get_name() + "(" + args + exn_cob + ")";
-      }
-    } else {
-      throw "UNKNOWN STYLE";
-    }
-
-    if (!args.empty()) {
-        args += ", ";
-    }
-
-    return
-      "void " + prefix + tfunction->get_name() +
-      "(" + args + "cxx::function<void" + cob_type + "> cob" + exn_cob + ")";
+  if (style =="CobSv") {
+      args = argument_list(arglist, name_params, false, true);
   } else {
-    throw "UNKNOWN STYLE";
+      args = argument_list(arglist, name_params, false);
   }
+  if (is_complex_type(ttype)) {
+      type_ref   = "&";
+      type_const = "const ";
+  }
+
+  if (!ttype->is_void()) {
+    ret_sync   = type_name(ttype) + "* response";
+    ret_parallel = type_name(ttype) + "* response, ";
+    ret_async  = "const cxx::function<void(int32_t ret_code, " + type_const + ns_prefix + type_name(ttype) + type_ref + " response)>& cb";
+  }
+
+  if (!tfunction->is_oneway()) {
+    if (!ttype->is_void()) {
+      ret_server = "cxx::function<void(int32_t ret_code, " + type_const + ns_prefix + type_name(ttype) + type_ref + " response)>& rsp";
+    } else {
+      ret_server = "cxx::function<void(int32_t ret_code)>& rsp";
+    }
+  }
+
+  // sync
+  if (style == "") {
+    if (!args.empty() && !ret_sync.empty()) {
+        args += ", ";
+    }
+    return "int32_t " + prefix + tfunction->get_name() + "(" + args + ret_sync + ")";
+  }
+
+  // parallel
+  if (style == "Parallel") {
+      if (!args.empty()) {
+          args += ", ";
+      }
+      return "int32_t " + prefix + tfunction->get_name() + "(" + args + "int32_t* ret_code, " + ret_parallel + "uint32_t* num_called, uint32_t* num_parallel)";
+  }
+
+  // async
+  if (style == "CobCl") {
+    if (!args.empty() && !ret_async.empty()) {
+        args += ", ";
+    }
+    return "void " + prefix + tfunction->get_name() + "(" + args + ret_async + ")";
+  }
+
+  // service interface
+  if (style =="CobSv") {
+    if (!args.empty() && !ret_server.empty()) {
+        args += ", ";
+    }
+    return "void " + prefix + tfunction->get_name() + "(" + args + ret_server + ")";
+  }
+
+  return "UNKNOWN STYLE";
 }
 
 /**
@@ -5806,8 +4295,10 @@ std::string t_cpp_client_generator::function_signature_if(t_function* tfunction,
  * @param tstruct The struct definition
  * @return Comma sepearated list of all field names in that struct
  */
-string t_cpp_client_generator::argument_list(t_struct* tstruct, bool name_params, bool start_comma) {
+string t_cpp_client_generator::argument_list(t_struct* tstruct, bool name_params, bool start_comma, bool add_ns) {
   string result = "";
+
+  std::string ns = "::" + program_->get_namespace("cpp") + "::";
 
   const vector<t_field*>& fields = tstruct->get_members();
   vector<t_field*>::const_iterator f_iter;
@@ -5818,7 +4309,18 @@ string t_cpp_client_generator::argument_list(t_struct* tstruct, bool name_params
     } else {
       result += ", ";
     }
-    result += type_name((*f_iter)->get_type(), false, true) + " " +
+    if (add_ns && (*f_iter)->get_type()->is_struct()) {
+        std::string type_ref;
+        std::string type_const;
+        if (is_complex_type((*f_iter)->get_type())) {
+            type_ref   = "&";
+            type_const = "const ";
+        }
+        result += type_const + ns + type_name((*f_iter)->get_type()) + type_ref;
+    } else {
+        result += type_name((*f_iter)->get_type(), false, true);
+    }
+    result += " " +
       (name_params ? (*f_iter)->get_name() : "/* " + (*f_iter)->get_name() + " */");
   }
   return result;
@@ -5839,32 +4341,32 @@ string t_cpp_client_generator::type_to_enum(t_type* type) {
     case t_base_type::TYPE_VOID:
       throw "NO T_VOID CONSTRUCT";
     case t_base_type::TYPE_STRING:
-      return "::pebble::rpc::protocol::T_STRING";
+      return "::pebble::dr::protocol::T_STRING";
     case t_base_type::TYPE_BOOL:
-      return "::pebble::rpc::protocol::T_BOOL";
+      return "::pebble::dr::protocol::T_BOOL";
     case t_base_type::TYPE_BYTE:
-      return "::pebble::rpc::protocol::T_BYTE";
+      return "::pebble::dr::protocol::T_BYTE";
     case t_base_type::TYPE_I16:
-      return "::pebble::rpc::protocol::T_I16";
+      return "::pebble::dr::protocol::T_I16";
     case t_base_type::TYPE_I32:
-      return "::pebble::rpc::protocol::T_I32";
+      return "::pebble::dr::protocol::T_I32";
     case t_base_type::TYPE_I64:
-      return "::pebble::rpc::protocol::T_I64";
+      return "::pebble::dr::protocol::T_I64";
     case t_base_type::TYPE_DOUBLE:
-      return "::pebble::rpc::protocol::T_DOUBLE";
+      return "::pebble::dr::protocol::T_DOUBLE";
     }
   } else if (type->is_enum()) {
-    return "::pebble::rpc::protocol::T_I32";
+    return "::pebble::dr::protocol::T_I32";
   } else if (type->is_struct()) {
-    return "::pebble::rpc::protocol::T_STRUCT";
+    return "::pebble::dr::protocol::T_STRUCT";
   } else if (type->is_xception()) {
-    return "::pebble::rpc::protocol::T_STRUCT";
+    return "::pebble::dr::protocol::T_STRUCT";
   } else if (type->is_map()) {
-    return "::pebble::rpc::protocol::T_MAP";
+    return "::pebble::dr::protocol::T_MAP";
   } else if (type->is_set()) {
-    return "::pebble::rpc::protocol::T_SET";
+    return "::pebble::dr::protocol::T_SET";
   } else if (type->is_list()) {
-    return "::pebble::rpc::protocol::T_LIST";
+    return "::pebble::dr::protocol::T_LIST";
   }
 
   throw "INVALID TYPE IN type_to_enum: " + type->get_name();
@@ -5932,7 +4434,7 @@ string t_cpp_client_generator::get_include_prefix(const t_program& program) cons
 }
 
 // default open cob_style and pure_enums.
-THRIFT_REGISTER_GENERATOR(cpp_client, "C++ for client(mobile)",
+THRIFT_REGISTER_GENERATOR(cpp_client, "C++ for client",
 /*"    cob_style:       Generate \"Continuation OBject\"-style classes.\n"
 "    no_client_completion:\n"
 "                     Omit calls to completion__() in CobClient class.\n"

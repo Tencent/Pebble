@@ -60,13 +60,21 @@ inline std::string GetCppComments(const DescriptorType *desc, bool leading) {
     } else {
         StringUtility::Split(location.trailing_comments, "\n", &comments);
     }
+
+    if (comments.empty()) {
+        return "";
+    }
+
     std::ostringstream oss;
+    oss << "/* ";
     for (std::vector<std::string>::iterator it = comments.begin(); it != comments.end(); ++it) {
         if (it != comments.begin()) {
             oss << "\n";
         }
-        oss << "//" << *it;
+        oss << *it;
     }
+    oss << " */";
+    
     return oss.str();
 }
 
