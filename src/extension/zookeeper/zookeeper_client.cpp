@@ -324,9 +324,11 @@ void ConnectWatcher(zhandle_t* zh, int type, int state, const char *path, void *
         case -113: /*ZOO_AUTH_FAILED_STATE*/
             PLOG_ERROR("session event: %s", state == -112 ? "session expired" : "auth failed");
             zkclient->AConnect();
+            zkclient->SetConnectionState(state);
             break;
         case 3: /*ZOO_CONNECTED_STATE*/
             zkclient->OnConnected();
+            zkclient->SetConnectionState(state);
             break;
         default:
             break;
@@ -372,7 +374,7 @@ EphemeralNodeInfo& EphemeralNodeInfo::operator = (const EphemeralNodeInfo& rhs)
 
 ZookeeperClient::ZookeeperClient()
     :   m_time_out_ms(30000), m_last_update_time(0), m_zk_path("/"),
-        m_zk_handle(NULL), m_watch_cb(NULL), m_last_resume_time(0)
+        m_zk_handle(NULL), m_watch_cb(NULL), m_last_resume_time(0), m_state(0)
 {
 }
 
@@ -454,7 +456,9 @@ void ZookeeperClient::OnConnected()
 
         // 已经有恢复标记的，不再恢复，统一放到周期恢复中去重试
         if (it->_state != kNODE_RESUME) {
-            node_info._state = kNODE_RESUME;
+            if (m_state == -112 || m_state == -113) {
+                node_info._state = kNODE_RESUME;
+            }
             ACreate(it->_path.c_str(), it->_value.c_str(), it->_value.length(),
                 &(it->_acl_vec), ZOO_EPHEMERAL, NULL);
         }

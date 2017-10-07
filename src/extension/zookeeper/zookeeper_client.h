@@ -178,6 +178,8 @@ public:
 
     void ResumeEphemeralNode();
 
+    void SetConnectionState(int state) { m_state = state; }
+
 private:
     std::string m_zk_host;
     int m_time_out_ms;
@@ -194,6 +196,7 @@ private:
     // 保存临时节点信息，在session expired恢复后自动恢复临时节点
     std::set<EphemeralNodeInfo> m_ephemeral_node;
     int64_t m_last_resume_time;
+    int m_state;
 };
 
 } // namespace pebble

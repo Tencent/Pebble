@@ -24,6 +24,8 @@
 #include <sys/epoll.h>
 #include <sys/syscall.h>
 #include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 
 #include "common/coroutine.h"
