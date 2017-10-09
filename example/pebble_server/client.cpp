@@ -12,6 +12,7 @@
  */
 
 #include <iostream>
+#include <unistd.h>
 
 #include "client/pebble_client.h"
 #include "common/string_utility.h"

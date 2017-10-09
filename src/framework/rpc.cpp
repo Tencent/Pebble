@@ -227,8 +227,8 @@ int32_t IRpc::BroadcastRequest(const std::string& name,
         return kRPC_ENCODE_FAILED;
     }
 
-    const uint8_t* msg_frag[] = { m_rpc_head_buff, buff     };
-    uint32_t msg_frag_len[]   = { head_len       , buff_len };
+    const uint8_t* msg_frag[] = { m_rpc_head_buff,    buff     };
+    uint32_t msg_frag_len[]   = { (uint32_t)head_len, buff_len };
 
     int32_t num = m_broadcastv(name, sizeof(msg_frag) / sizeof(*msg_frag), msg_frag, msg_frag_len);
 
@@ -275,8 +275,8 @@ int32_t IRpc::SendMessage(int64_t handle, const RpcHead& rpc_head,
         return kRPC_ENCODE_FAILED;
     }
 
-    const uint8_t* msg_frag[] = { m_rpc_head_buff, buff     };
-    uint32_t msg_frag_len[]   = { head_len       , buff_len };
+    const uint8_t* msg_frag[] = { m_rpc_head_buff,    buff     };
+    uint32_t msg_frag_len[]   = { (uint32_t)head_len, buff_len };
 
     // 消息原路返回，如果有消息来源，则返回到来源点，如果无消息来源，走默认发送流程
     int32_t send_ret = 0;
