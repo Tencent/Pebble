@@ -22,6 +22,7 @@
 #endif
 
 #include <stdint.h>
+#include <unistd.h>
 
 // 源码依赖场景下，可以适配编译器版本
 // 包依赖场景下，统一使用std::tr1，避免c++11编译器编译时pebble的头文件和lib不一致
