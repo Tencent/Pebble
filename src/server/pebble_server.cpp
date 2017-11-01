@@ -17,7 +17,7 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include <unistd.h>
 #include "common/coroutine.h"
 #include "common/cpu.h"
 #include "common/ini_reader.h"
@@ -611,8 +611,12 @@ int32_t PebbleServer::Update() {
         num += m_session_mgr->CheckTimeout();
     }
 
+    int64_t user_begin = 0;
+    int64_t user_end = 0;
     if (m_event_handler) {
+        user_begin = TimeUtility::GetCurrentUS();
         num += m_event_handler->OnUpdate();
+        user_end = TimeUtility::GetCurrentUS();
     }
 
     if (m_broadcast_mgr) {
@@ -622,6 +626,7 @@ int32_t PebbleServer::Update() {
     if (m_stat_manager) {
         num += m_stat_manager->Update();
         m_stat_manager->GetStat()->AddResourceItem("_loop", (TimeUtility::GetCurrentUS() - old) / 1000);
+        m_stat_manager->GetStat()->AddResourceItem("_user_loop", (user_end - user_begin) / 1000);
     }
 
     return num;

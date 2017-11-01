@@ -117,7 +117,7 @@ void TMemoryBuffer::ensureCanWrite(uint32_t len)
     }
     bufferSize_ = new_size;
 
-    ptrdiff_t offset = reinterpret_cast<uint8_t*>(new_buffer) - buffer_;
+    std::ptrdiff_t offset = reinterpret_cast<uint8_t*>(new_buffer) - buffer_;
     buffer_ += offset;
     rBase_ += offset;
     rBound_ += offset;

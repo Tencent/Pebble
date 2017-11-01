@@ -26,15 +26,12 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
-
-
+#include <sys/syscall.h>
 #include "common/coroutine.h"
 #include "common/log.h"
 #include "common/timer.h"
 
-
 namespace pebble {
-
 
 struct stCoEpoll_t;
 struct stCoRoutineEnv_t {
@@ -173,7 +170,7 @@ static void InitCoEnv() {
     } else {
         PLOG_ERROR("open %s failed : %s", file, strerror(errno));
     }
-    
+
     g_CoEnvArrayForThread = (stCoRoutineEnv_t**)calloc(max_pid, sizeof(stCoRoutineEnv_t*));
 }
 static void FiniCoEnv() {
