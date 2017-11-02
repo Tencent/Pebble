@@ -12,3 +12,17 @@ cc_binary(
     ],
 )
 
+gen_rule(
+    name = 'cp_cfg',
+    srcs = [
+        'cfg',
+    ],
+    cmd = 'cp $BUILD_DIR/../example/pebble_ctrl_cmd/cfg -rf $BUILD_DIR/example/pebble_ctrl_cmd',
+    deps = [
+        ':server',
+    ],
+    outs = [
+        'pebble.ini',
+    ],
+)
+

@@ -56,3 +56,17 @@ cc_binary(
     ],
 )
 
+gen_rule(
+    name = 'cp_cfg',
+    srcs = [
+        'cfg',
+    ],
+    cmd = 'cp $BUILD_DIR/../example/hello_world/cfg -rf $BUILD_DIR/example/hello_world',
+    deps = [
+        ':server',
+    ],
+    outs = [
+        'pebble.ini',
+    ],
+)
+

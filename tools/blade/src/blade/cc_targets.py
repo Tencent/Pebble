@@ -778,10 +778,12 @@ class CcBinary(CcTarget):
         env_name = self._env_name()
         var_name = self._generate_variable_name(self.path, self.name)
 
+        """
         platform = self.blade.get_scons_platform()
         if platform.get_gcc_version() > '4.5':
             link_flag_list = ['-static-libgcc', '-static-libstdc++']
             self._write_rule('%s.Append(LINKFLAGS=%s)' % (env_name, link_flag_list))
+        """
 
         (link_all_symbols_lib_list,
          lib_str,
