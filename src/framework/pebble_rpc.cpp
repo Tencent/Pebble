@@ -116,14 +116,14 @@ uint8_t* PebbleRpc::GetBuffer(int32_t size) {
         return NULL;
     }
     // 2 * size or max_buff_size
-    int32_t need_realloc = std::min(size + size - m_buff_size, max_buff_size - m_buff_size);
+    int32_t need_realloc = std::min(size + size, max_buff_size);
     uint8_t* new_buff = (uint8_t*)realloc(m_buff, need_realloc);
     if (new_buff == NULL) {
         PLOG_ERROR("realloc failed, buff size %d, realloc size %d", m_buff_size, need_realloc);
         return NULL;
     }
     m_buff = new_buff;
-    m_buff_size += need_realloc;
+    m_buff_size = need_realloc;
     return m_buff;
 }
 
